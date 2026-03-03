@@ -1,0 +1,385 @@
+---
+title: 'Artisan Commands'
+description: 'Available CLI commands for managing Heimerdinger.lol'
+icon: 'terminal'
+---
+
+## Overview
+
+Heimdinger.lol includes several custom Artisan commands for maintenance, deployment, and content management tasks. These commands are located in `app/Console/Commands/`.
+
+## Available Commands
+
+### Sitemap Generation
+
+Generates XML sitemaps for search engine optimization.
+
+```bash
+php artisan sitemap:generate
+```
+
+<AccordionGroup>
+  <Accordion title="Command Details" icon="file-code">
+    **File**: `app/Console/Commands/GenerateSitemapCommand.php`
+    
+    **Signature**: `sitemap:generate`
+    
+    **Description**: Generate XML sitemaps for all pages
+  </Accordion>
+
+  <Accordion title="What It Does" icon="list">
+    The command collects URLs from multiple sources and generates sitemap files:
+    
+    <Steps>
+      <Step title="Collect Static Pages">
+        Gathers all static routes (home, about, FAQ, etc.) with priority and change frequency:
+        ```php app/Console/Commands/GenerateSitemapCommand.php:63
+        $staticPages = [
+            ['url' => route('home'), 'priority' => 1.0, 'changefreq' => 'daily'],
+            ['url' => route('champions.index'), 'priority' => 0.9, 'changefreq' => 'weekly'],
+            ['url' => route('skins.index'), 'priority' => 0.9, 'changefreq' => 'weekly'],
+            // ... more pages
+        ];
+        ```
+      </Step>
+
+      <Step title="Collect Dynamic Content">
+        Queries database for:
+        - All blog posts from Sheets
+        - All champions with slugs
+        - All skins with slugs
+        - All summoner icons with slugs
+      </Step>
+
+      <Step title="Generate Sitemap Files">
+        Creates `public/sitemap.xml` or multiple files if over 50,000 URLs:
+        ```php app/Console/Commands/GenerateSitemapCommand.php:50
+        if ($totalUrls > self::MAX_URLS_PER_SITEMAP) {
+            $this->generateMultipleSitemaps($urls, $baseUrl);
+        } else {
+            $this->generateSingleSitemap($urls, $baseUrl);
+        }
+        ```
+      </Step>
+    </Steps>
+  </Accordion>
+
+  <Accordion title="Configuration" icon="gear">
+    The base URL is configured via environment:
+    
+    ```php app/Console/Commands/GenerateSitemapCommand.php:29
+    $baseUrl = config('app.HEIMER_URL', 'https://heimerdinger.lol');
+    ```
+    
+    Set in your `.env`:
+    ```bash
+    APP_URL=https://heimerdinger.lol
+    ```
+  </Accordion>
+</AccordionGroup>
+
+**Output**: Creates `public/sitemap.xml` accessible at `https://yourdomain.com/sitemap.xml`
+
+<Note>
+  Run this command after adding new champions, skins, or blog posts to update the sitemap.
+</Note>
+
+---
+
+### Cloudflare Cache Purge
+
+Purges the Cloudflare cache for the entire site.
+
+```bash
+php artisan cloudflare:purge
+```
+
+<AccordionGroup>
+  <Accordion title="Command Details" icon="file-code">
+    **File**: `app/Console/Commands/CloudflarePurgeCommand.php`
+    
+    **Signature**: `cloudflare:purge`
+    
+    **Description**: Purge the Cloudflare cache
+  </Accordion>
+
+  <Accordion title="How It Works" icon="cloud">
+    Makes an API request to Cloudflare to clear all cached content:
+    
+    ```php app/Console/Commands/CloudflarePurgeCommand.php:26
+    $response = $client->request(
+        'POST',
+        'https://api.cloudflare.com/client/v4/zones/'.$cf_zone_id.'/purge_cache',
+        [
+            'headers' => [
+                'Authorization' => 'Bearer '.$cf_auth_bearer,
+                'Content-Type' => 'application/json',
+            ],
+            'json' => [
+                'purge_everything' => true,
+            ],
+        ]
+    );
+    ```
+  </Accordion>
+
+  <Accordion title="Configuration" icon="key">
+    Requires Cloudflare credentials in `config/cloudflare.php`:
+    
+    ```php config/cloudflare.php
+    return [
+        'cf_zone_id' => env('CLOUDFLARE_ZONE_ID'),
+        'cf_auth_bearer' => env('CLOUDFLARE_AUTH_BEARER'),
+    ];
+    ```
+    
+    Set in `.env`:
+    ```bash .env.example:34
+    CLOUDFLARE_ZONE_ID="YOUR_CLOUDFLARE_ZONE"
+    CLOUDFLARE_AUTH_BEARER="YOUR_CLOUDFLARE_AUTH_BEARER"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  This command only runs in production environment. It will silently exit in local/staging environments.
+</Warning>
+
+**When to Use**:
+- After deploying new content
+- When updating static assets
+- After changing CSS/JS files
+- When skin/champion data updates
+
+---
+
+### User Creation
+
+Creates a new user account from the command line.
+
+```bash
+php artisan user:create
+```
+
+<AccordionGroup>
+  <Accordion title="Command Details" icon="file-code">
+    **File**: `app/Console/Commands/UserCreateCommand.php`
+    
+    **Signature**: `user:create`
+    
+    **Description**: Create a new user from CLI
+  </Accordion>
+
+  <Accordion title="Interactive Prompts" icon="keyboard">
+    The command prompts for user information:
+    
+    ```php app/Console/Commands/UserCreateCommand.php:22
+    $name = $this->ask('Name');
+    $email = $this->ask('Email');
+    $password = $this->secret('Password');
+    $password_confirmation = $this->secret('Confirm password');
+    $admin = $this->confirm('Is this user an admin?');
+    ```
+  </Accordion>
+
+  <Accordion title="User Creation" icon="user-plus">
+    Creates the user with hashed password:
+    
+    ```php app/Console/Commands/UserCreateCommand.php:40
+    $user = User::create([
+        'name' => $name,
+        'email' => $email,
+        'password' => bcrypt($password),
+        'admin' => $admin,
+    ]);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+**Example Session**:
+```bash
+$ php artisan user:create
+Creating a new user...
+Name: John Doe
+Email: john@heimerdinger.lol
+Password: ••••••••
+Confirm password: ••••••••
+Is this user an admin? (yes/no) [no]: yes
+User with name John Doe created successfully.
+```
+
+<Note>
+  Admin users have access to Laravel Pulse monitoring and the streamer management panel.
+</Note>
+
+---
+
+## Built-in Laravel Commands
+
+In addition to custom commands, you'll frequently use these Laravel commands:
+
+### Database
+
+<CodeGroup>
+```bash Run Migrations
+php artisan migrate
+```
+
+```bash Rollback Migrations
+php artisan migrate:rollback
+```
+
+```bash Fresh Database
+php artisan migrate:fresh
+```
+
+```bash Database Seeding
+php artisan db:seed
+```
+</CodeGroup>
+
+### Cache Management
+
+<CodeGroup>
+```bash Clear All Caches
+php artisan cache:clear
+php artisan config:clear
+php artisan route:clear
+php artisan view:clear
+```
+
+```bash Optimize for Production
+php artisan optimize
+```
+
+```bash Clear Single Cache Store
+php artisan cache:forget champions_data
+```
+</CodeGroup>
+
+### Laravel Octane
+
+<CodeGroup>
+```bash Start Octane Server
+php artisan octane:start
+```
+
+```bash Reload Workers
+php artisan octane:reload
+```
+
+```bash Stop Server
+php artisan octane:stop
+```
+
+```bash Production with Workers
+php artisan octane:start --workers=4 --task-workers=6
+```
+</CodeGroup>
+
+### Development
+
+<CodeGroup>
+```bash Interactive Shell
+php artisan tinker
+```
+
+```bash List All Routes
+php artisan route:list
+```
+
+```bash Test Database Connection
+php artisan db:show
+```
+</CodeGroup>
+
+## Scheduled Commands
+
+While the application doesn't currently define scheduled tasks in `app/Console/Kernel.php`, you can schedule commands using Laravel's task scheduler:
+
+```php
+protected function schedule(Schedule $schedule): void
+{
+    // Generate sitemap daily at 2 AM
+    $schedule->command('sitemap:generate')->dailyAt('02:00');
+    
+    // Purge Cloudflare cache after sitemap
+    $schedule->command('cloudflare:purge')->dailyAt('02:15');
+}
+```
+
+Then add to your crontab:
+```bash
+* * * * * cd /path-to-your-project && php artisan schedule:run >> /dev/null 2>&1
+```
+
+## Creating Custom Commands
+
+Generate a new command:
+
+```bash
+php artisan make:command YourCommandName
+```
+
+Example command structure:
+
+```php
+namespace App\Console\Commands;
+
+use Illuminate\Console\Command;
+
+class YourCommandName extends Command
+{
+    protected $signature = 'your:command {argument?} {--option}';
+    protected $description = 'Command description';
+    
+    public function handle(): void
+    {
+        $this->info('Command output');
+        // Your command logic
+    }
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Production Safety" icon="shield">
+    Always add environment checks for destructive operations:
+    
+    ```php app/Console/Commands/UserCreateCommand.php:16
+    if (config('app.env') === 'production' && ! $this->confirm('You are in production mode. Are you sure?')) {
+        return;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Logging" icon="file-lines">
+    Log important command executions:
+    
+    ```php
+    Log::info('Sitemap generated', ['total_urls' => count($urls)]);
+    ```
+  </Accordion>
+
+  <Accordion title="Exit Codes" icon="door-open">
+    Return appropriate exit codes:
+    
+    ```php
+    return Command::SUCCESS;  // 0
+    return Command::FAILURE;  // 1
+    return Command::INVALID;  // 2
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Deployment Guide" icon="rocket" href="/development/deployment">
+    Learn how to deploy with Laravel Octane
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Understand the application structure
+  </Card>
+</CardGroup>

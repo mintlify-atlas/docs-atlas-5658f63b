@@ -1,0 +1,259 @@
+---
+title: Sale rotation tracking
+description: Track current League of Legends champion and skin sales with live pricing and discount information
+---
+
+The sale rotation feature provides real-time information about champions and skins currently on sale in League of Legends.
+
+## Overview
+
+Heimerdinger.lol's sale rotation tracker:
+
+- Displays current champion sales with discounted RP prices
+- Shows skin sales with discount percentages
+- Fetches live data from the Boris API
+- Implements 8-hour caching for performance
+- Includes a feature toggle for maintenance mode
+- Provides detailed error handling and logging
+
+## Route
+
+The sale rotation uses a single route defined in `routes/web.php:61`:
+
+```php
+Route::get('sale-rotation', static fn () => (new SaleController)->index())->name('sales.index');
+```
+
+## Feature Toggle
+
+The sale rotation includes a feature toggle to enable/disable the feature:
+
+<Warning>
+  When the feature is disabled via `SALES_ENABLED=false` in the `.env` file, the page displays a maintenance message instead of attempting to fetch sales data.
+</Warning>
+
+```php
+// source/app/Http/Controllers/SaleController.php:14-17
+if (!config('sales.enabled')) {
+    return view('sales.index');
+}
+```
+
+### Configuration
+
+Set the feature toggle in your `.env` file:
+
+```bash
+# Enable or disable fetching live Sale Rotation data from the external API.
+# Set to true to enable fetching, false to show the maintenance message.
+SALES_ENABLED=false
+```
+
+## Sales Data Fetching
+
+The `SaleController::index()` method (source/app/Http/Controllers/SaleController.php:12-79) fetches and caches sales data:
+
+```php
+public function index()
+{
+    if (!config('sales.enabled')) {
+        return view('sales.index');
+    }
+
+    try {
+        $sales = Cache::remember('sales_data', 60 * 60 * 8, function () {
+            $borisUrl = rtrim((string) config('services.boris.url'), '/');
+            $borisApiKey = (string) config('services.boris.api_key');
+
+            $headers = [
+                'X-API-Key' => $borisApiKey,
+            ];
+
+            $championSalesResponse = Http::withHeaders($headers)->get($borisUrl.'/api/champions/sales');
+            $skinSalesResponse = Http::withHeaders($headers)->get($borisUrl.'/api/skins/sales');
+
+            // Validation and error handling...
+        });
+    } catch (\Exception $exception) {
+        // Error handling...
+    }
+
+    return view('sales.index', ['sales' => $sales]);
+}
+```
+
+## API Endpoints
+
+The sale controller fetches data from two Boris API endpoints:
+
+<CardGroup cols={2}>
+  <Card title="Champion Sales" icon="chess-knight">
+    `GET /api/champions/sales`
+    
+    Returns champions currently on sale
+  </Card>
+  <Card title="Skin Sales" icon="palette">
+    `GET /api/skins/sales`
+    
+    Returns skins currently on sale
+  </Card>
+</CardGroup>
+
+### Authentication
+
+<Note>
+  Both endpoints require the `X-API-Key` header with your Boris API key from `config('services.boris.api_key')`.
+</Note>
+
+## Response Format
+
+The API returns sales data in the following format:
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "sale_rp": 487,
+      "percent_off": 35
+    }
+  ]
+}
+```
+
+This is transformed into:
+
+```php
+[
+    'champion_sales' => [
+        [
+            'item_id' => 1,
+            'rp' => 487,
+            'percent_off' => 35
+        ]
+    ],
+    'skin_sales' => [
+        [
+            'item_id' => 53,
+            'rp' => 675,
+            'percent_off' => 25
+        ]
+    ]
+]
+```
+
+## Caching Strategy
+
+<Info>
+  Sales data is cached for **8 hours** (28,800 seconds) to balance freshness with API rate limits.
+</Info>
+
+```php
+$sales = Cache::remember('sales_data', 60 * 60 * 8, function () {
+    // Fetch sales data from API
+});
+```
+
+### Cache Key
+
+The cache uses a simple key: `sales_data`
+
+## Error Handling
+
+The sale controller implements comprehensive error handling:
+
+<Steps>
+  <Step title="HTTP Status Validation">
+    Checks if both API requests returned successful status codes (200)
+    
+    ```php
+    if (! $championSalesResponse->successful() || ! $skinSalesResponse->successful()) {
+        Log::error('Boris sales request failed.');
+        throw new RuntimeException('Boris sales request failed.');
+    }
+    ```
+  </Step>
+  
+  <Step title="Payload Validation">
+    Verifies the response contains the expected `items` array
+    
+    ```php
+    if (
+        ! isset($championSales['items']) || ! is_array($championSales['items']) ||
+        ! isset($skinSales['items']) || ! is_array($skinSales['items'])
+    ) {
+        Log::error('Boris sales payload is invalid.');
+        throw new RuntimeException('Boris sales payload is invalid.');
+    }
+    ```
+  </Step>
+  
+  <Step title="Exception Handling">
+    Returns appropriate HTTP error codes to the user
+    
+    - **503 Service Unavailable** - When Boris API fails or returns invalid data
+    - **500 Internal Server Error** - For unexpected errors
+  </Step>
+</Steps>
+
+### Error Logging
+
+All errors are logged with contextual information:
+
+```php
+Log::error('Boris sales request failed.', [
+    'champions_status' => $championSalesResponse->status(),
+    'skins_status' => $skinSalesResponse->status(),
+]);
+```
+
+<Tip>
+  Errors are also sent to Discord webhooks if configured (see `LOG_DISCORD_WEBHOOK_URL` in `.env`).
+</Tip>
+
+## Configuration Requirements
+
+To use the sale rotation feature, configure these environment variables:
+
+<ParamField path="SALES_ENABLED" type="boolean" default="false">
+  Enable/disable the sale rotation feature
+</ParamField>
+
+<ParamField path="BORIS_URL" type="string" required>
+  Base URL for the Boris API (e.g., `https://boris.heimerdinger.lol`)
+</ParamField>
+
+<ParamField path="BORIS_API_KEY" type="string" required>
+  API key for authenticating with the Boris API
+</ParamField>
+
+## Maintenance Mode
+
+When `SALES_ENABLED=false`, the sale rotation page displays a maintenance message instead of attempting to fetch data:
+
+```php
+if (!config('sales.enabled')) {
+    return view('sales.index');
+}
+```
+
+<Warning>
+  The view is returned without any sales data, allowing the template to display a user-friendly maintenance message.
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Champions" icon="chess-knight" href="/features/champions">
+    Browse all champions to see which ones are on sale
+  </Card>
+  <Card title="Skins" icon="palette" href="/features/skins">
+    View the full skin catalog with rarity information
+  </Card>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Learn about the Boris API and data fetching strategy
+  </Card>
+  <Card title="Controller API" icon="code" href="/api/controllers/sale-controller">
+    View the full SaleController API reference
+  </Card>
+</CardGroup>

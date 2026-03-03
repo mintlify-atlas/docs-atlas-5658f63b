@@ -1,0 +1,194 @@
+---
+title: Introduction
+description: Welcome to Heimerdinger.lol - Your ultimate League of Legends companion for champion information, skin rotations, and more
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Hero Dark"
+/>
+
+## Welcome to Heimerdinger.lol
+
+Heimerdingeris a user-friendly League of Legends website providing you with interesting and fun information such as current sale rotation, upcoming skins, champion details, and player statistics.
+
+Built with modern web technologies including Laravel 11, TailwindCSS, and powered by the Riot Games API, Heimerdinger.lol delivers real-time League of Legends data in an intuitive interface.
+
+<Note>
+  Heimerdinger.lol was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
+</Note>
+
+## Key Features
+
+Discover what makes Heimerdinger.lol your go-to League of Legends companion:
+
+<CardGroup cols={2}>
+  <Card
+    title="Champion Database"
+    icon="user-shield"
+    href="#champion-data"
+  >
+    Access detailed information about all League of Legends champions, including stats, abilities, and popular lane assignments
+  </Card>
+  <Card
+    title="Skin & Chroma Gallery"
+    icon="palette"
+    href="#skins-chromas"
+  >
+    Browse all available skins and chromas with high-quality images and pricing information
+  </Card>
+  <Card
+    title="Sale Rotation Tracking"
+    icon="tag"
+    href="#sale-rotation"
+  >
+    Stay updated with current champion and skin sales, never miss a deal on your favorite content
+  </Card>
+  <Card
+    title="Player Profiles"
+    icon="chart-line"
+    href="#player-stats"
+  >
+    View player ranks, levels, and mastery points by searching for Riot IDs (Name#0000 format)
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+Heimerdingeris built using a modern, high-performance technology stack:
+
+- **Laravel 11** - PHP framework with Octane for enhanced performance
+- **MySQL** - Robust database for champion, skin, and user data
+- **TailwindCSS** - Utility-first CSS framework with Flowbite components
+- **Vite** - Lightning-fast frontend build tool
+- **Riot Games API** - Official API for real-time League of Legends data
+- **DataDragon & Meraki Analytics** - Additional data sources for comprehensive information
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation Guide"
+    icon="download"
+    href="/installation"
+  >
+    Get started by installing Heimerdinger.lol on your local machine or server
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/configuration"
+  >
+    Configure your environment variables, API keys, and database connections
+  </Card>
+</CardGroup>
+
+## Quick Start
+
+Ready to dive in? Follow these high-level steps:
+
+<Steps>
+  <Step title="Prerequisites">
+    Ensure you have PHP 8.2+, Composer, Node.js, and MySQL installed on your system
+  </Step>
+  <Step title="Installation">
+    Clone the repository and install dependencies with Composer and npm
+  </Step>
+  <Step title="Configuration">
+    Set up your `.env` file with database credentials and API keys
+  </Step>
+  <Step title="Launch">
+    Run migrations, seed the database, and start the development server
+  </Step>
+</Steps>
+
+## Core Features Deep Dive
+
+### Champion Data
+
+Heimerdingeruses the `Champion` model (app/Models/Champion.php:1) to provide comprehensive champion information including:
+
+- Champion statistics and abilities
+- Role assignments (Top, Jungle, Mid, ADC, Support)
+- Champion images and splash arts
+- Skin relationships with pricing data
+
+### Skins & Chromas
+
+The `ChampionSkin` (app/Models/ChampionSkin.php:1) and `SkinChroma` (app/Models/SkinChroma.php:1) models power the extensive skin gallery, featuring:
+
+- High-resolution skin splash arts
+- Chroma variations for supported skins
+- Sale rotation tracking
+- Pricing in RP (Riot Points)
+
+### Sale Rotation
+
+Stay informed about current deals with the sale rotation feature, which can be toggled via the `SALES_ENABLED` environment variable (.env.example:95).
+
+### Player Stats
+
+Search for summoners by their Riot ID to view:
+
+- Current ranked status and division
+- Summoner level
+- Champion mastery points
+- Profile icons and emotes
+
+## Performance Features
+
+<CardGroup cols={2}>
+  <Card title="Laravel Octane" icon="rocket">
+    Utilizes Swoole server for supercharged application performance (.env.example:25)
+  </Card>
+  <Card title="Cloudflare Integration" icon="cloud">
+    CDN caching and R2 storage for optimized asset delivery (.env.example:34-69)
+  </Card>
+  <Card title="Laravel Pulse" icon="heart-pulse">
+    Real-time application monitoring and performance insights
+  </Card>
+  <Card title="Database Optimization" icon="database">
+    Efficient queries with Eloquent ORM and query builder optimizations
+  </Card>
+</CardGroup>
+
+## Security Features
+
+- **hCaptcha Integration** - Bot protection on forms (.env.example:40-41)
+- **Honeypot Protection** - Additional spam prevention using Spatie's Laravel Honeypot
+- **Sanctum Authentication** - API token authentication for secure endpoints
+- **Environment-based Configuration** - Secure credential management
+
+## What's Next?
+
+<CardGroup cols={3}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install all required dependencies and set up your development environment
+  </Card>
+  <Card
+    title="Configuration"
+    icon="sliders"
+    href="/configuration"
+  >
+    Configure environment variables, API keys, and database connections
+  </Card>
+  <Card
+    title="Contributing"
+    icon="code-pull-request"
+    href="https://github.com/rico-vz/HeimerdingerLoL/blob/main/CONTRIBUTING.md"
+  >
+    Learn how to contribute to the Heimerdinger.lol project
+  </Card>
+</CardGroup>
+
+<Warning>
+  Remember to obtain your own Riot Games API key from the [Riot Developer Portal](https://developer.riotgames.com/) before running the application. The API key should be added to your `.env` file as `RGAPI_KEY`.
+</Warning>

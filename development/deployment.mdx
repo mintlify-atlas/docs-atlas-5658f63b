@@ -1,0 +1,654 @@
+---
+title: 'Deployment Guide'
+description: 'Deploy Heimerdinger.lol with Laravel Octane, environment configuration, and production setup'
+icon: 'rocket'
+---
+
+## Overview
+
+Heimdinger.lol is designed to run on **Laravel Octane** for high-performance request handling. This guide covers production deployment, server requirements, and configuration.
+
+## Server Requirements
+
+### Minimum Requirements
+
+- **PHP**: 8.2 or higher
+- **Database**: MySQL 8.0+ or MariaDB 10.3+
+- **Memory**: 512MB minimum, 2GB+ recommended
+- **Extensions**: Required PHP extensions
+
+### Required PHP Extensions
+
+```bash
+php -m | grep -E '(pdo|pdo_mysql|mbstring|xml|ctype|json|bcmath|gd)'
+```
+
+Required extensions:
+- `pdo` and `pdo_mysql`
+- `mbstring`
+- `xml` and `dom`
+- `ctype`
+- `json`
+- `bcmath`
+- `gd` or `imagick` (for Intervention Image)
+- `curl`
+- `openssl`
+- `fileinfo`
+
+### Octane Server Options
+
+Laravel Octane supports multiple application servers:
+
+<Tabs>
+  <Tab title="Swoole (Recommended)">
+    **Swoole** is the recommended server for production.
+    
+    ```bash
+    # Install Swoole via PECL
+    pecl install swoole
+    
+    # Or via package manager (Ubuntu)
+    apt-get install php8.2-swoole
+    ```
+    
+    Verify installation:
+    ```bash
+    php --ri swoole
+    ```
+  </Tab>
+  
+  <Tab title="RoadRunner">
+    **RoadRunner** is a Go-based alternative.
+    
+    ```bash
+    # Install RoadRunner binary
+    composer require spiral/roadrunner
+    ./vendor/bin/rr get-binary
+    ```
+    
+    Configure in `.env`:
+    ```bash
+    OCTANE_SERVER=roadrunner
+    ```
+  </Tab>
+  
+  <Tab title="FrankenPHP">
+    **FrankenPHP** uses PHP's native server.
+    
+    ```bash
+    OCTANE_SERVER=frankenphp
+    ```
+  </Tab>
+</Tabs>
+
+## Environment Configuration
+
+### Production Environment File
+
+Create a production `.env` file based on `.env.example`:
+
+```bash .env (Production)
+APP_NAME=Heimerdinger
+APP_ENV=production
+APP_KEY=base64:GENERATE_WITH_php_artisan_key:generate
+APP_DEBUG=false
+APP_TIMEZONE=Europe/Amsterdam
+APP_URL=https://heimerdinger.lol
+
+# Laravel Octane
+OCTANE_SERVER=swoole
+OCTANE_HTTPS=false  # Let reverse proxy handle HTTPS
+
+# Database
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=heimerdinger_db
+DB_USERNAME=heimerdinger
+DB_PASSWORD=your_secure_password
+
+# Caching
+CACHE_STORE=file
+SESSION_DRIVER=database
+
+# Data Sources
+BORIS_URL=https://boris.heimerdinger.lol
+BORIS_API_KEY=your_boris_api_key
+RGAPI_KEY="RGAPI-your-riot-api-key"
+
+# Cloudflare
+CLOUDFLARE_ZONE_ID="your_zone_id"
+CLOUDFLARE_AUTH_BEARER="your_auth_token"
+
+# Discord Logging
+DISCORD_ALERT_WEBHOOK="https://discord.com/api/webhooks/..."
+LOG_CHANNEL=stack
+LOG_STACK=single,discord
+
+# Security
+HCAPTCHA_SECRET=your_hcaptcha_secret
+HCAPTCHA_SITEKEY=your_hcaptcha_sitekey
+HONEYPOT_NAME=honeypot
+
+# Features
+SALES_ENABLED=true
+```
+
+<Warning>
+  Never commit your production `.env` file to version control. Keep it secure and backed up separately.
+</Warning>
+
+### Generate Application Key
+
+```bash
+php artisan key:generate
+```
+
+This sets `APP_KEY` which is used for encryption.
+
+## Octane Configuration
+
+The Octane configuration is located at `config/octane.php`.
+
+### Key Configuration Options
+
+<AccordionGroup>
+  <Accordion title="Server Selection" icon="server">
+    Choose your application server:
+    
+    ```php config/octane.php:36
+    'server' => env('OCTANE_SERVER', 'roadrunner'),
+    ```
+    
+    Options: `swoole`, `roadrunner`, `frankenphp`
+  </Accordion>
+
+  <Accordion title="HTTPS Configuration" icon="lock">
+    ```php config/octane.php:49
+    'https' => env('OCTANE_HTTPS', false),
+    ```
+    
+    Set to `false` when using a reverse proxy (nginx/Caddy) that handles SSL.
+  </Accordion>
+
+  <Accordion title="File Watching" icon="eye">
+    Auto-reload workers when files change (development only):
+    
+    ```php config/octane.php:180
+    'watch' => [
+        'app',
+        'bootstrap',
+        'config',
+        'database',
+        'routes',
+        '.env',
+    ],
+    ```
+  </Accordion>
+
+  <Accordion title="Worker Configuration" icon="users">
+    ```php config/octane.php:216
+    'max_execution_time' => 30,
+    ```
+    
+    Set to `0` for no time limit on worker execution.
+  </Accordion>
+</AccordionGroup>
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Clone Repository">
+    ```bash
+    git clone https://github.com/rico-vz/HeimerdingerLoL.git
+    cd HeimerdingerLoL
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    composer install --no-dev --optimize-autoloader
+    npm install
+    npm run build
+    ```
+    
+    <Note>
+      The `--no-dev` flag excludes development dependencies for smaller footprint.
+    </Note>
+  </Step>
+
+  <Step title="Configure Environment">
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    ```
+    
+    Edit `.env` with your production values.
+  </Step>
+
+  <Step title="Run Migrations">
+    ```bash
+    php artisan migrate --force
+    ```
+    
+    The `--force` flag is required in production.
+  </Step>
+
+  <Step title="Optimize Application">
+    ```bash
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    php artisan optimize
+    ```
+  </Step>
+
+  <Step title="Set Permissions">
+    ```bash
+    chmod -R 775 storage bootstrap/cache
+    chown -R www-data:www-data storage bootstrap/cache
+    ```
+  </Step>
+
+  <Step title="Start Octane Server">
+    ```bash
+    php artisan octane:start --workers=4 --task-workers=6 --port=8000
+    ```
+  </Step>
+</Steps>
+
+## Running Octane in Production
+
+### Systemd Service
+
+Create a systemd service for automatic startup and management:
+
+```ini /etc/systemd/system/heimerdinger-octane.service
+[Unit]
+Description=Heimerdinger.lol Octane Server
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/heimerdinger.lol
+ExecStart=/usr/bin/php /var/www/heimerdinger.lol/artisan octane:start --server=swoole --workers=4 --task-workers=6 --port=8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```bash
+sudo systemctl enable heimerdinger-octane
+sudo systemctl start heimerdinger-octane
+sudo systemctl status heimerdinger-octane
+```
+
+### Supervisor Configuration (Alternative)
+
+Alternatively, use Supervisor:
+
+```ini /etc/supervisor/conf.d/heimerdinger-octane.conf
+[program:heimerdinger-octane]
+process_name=%(program_name)s
+command=php /var/www/heimerdinger.lol/artisan octane:start --server=swoole --workers=4 --task-workers=6 --port=8000
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=/var/www/heimerdinger.lol/storage/logs/octane.log
+stopwaitsecs=60
+```
+
+Reload Supervisor:
+
+```bash
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start heimerdinger-octane
+```
+
+## Reverse Proxy Configuration
+
+### Nginx
+
+```nginx /etc/nginx/sites-available/heimerdinger.lol
+server {
+    listen 80;
+    listen [::]:80;
+    server_name heimerdinger.lol www.heimerdinger.lol;
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name heimerdinger.lol www.heimerdinger.lol;
+    
+    ssl_certificate /etc/letsencrypt/live/heimerdinger.lol/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/heimerdinger.lol/privkey.pem;
+    
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+    }
+    
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}
+```
+
+Enable the site:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/heimerdinger.lol /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Caddy
+
+Caddy automatically handles HTTPS:
+
+```caddyfile /etc/caddy/Caddyfile
+heimdinger.lol www.heimerdinger.lol {
+    reverse_proxy localhost:8000
+    encode gzip
+}
+```
+
+Reload Caddy:
+
+```bash
+sudo systemctl reload caddy
+```
+
+## Database Setup
+
+### Create Database and User
+
+```sql
+CREATE DATABASE heimerdinger_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'heimerdinger'@'localhost' IDENTIFIED BY 'secure_password';
+GRANT ALL PRIVILEGES ON heimerdinger_db.* TO 'heimerdinger'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+### Run Migrations
+
+```bash
+php artisan migrate --force
+```
+
+### Database Backups
+
+Configure automated backups with Spatie Backup:
+
+```bash
+php artisan backup:run
+```
+
+Schedule daily backups in `app/Console/Kernel.php`:
+
+```php
+$schedule->command('backup:clean')->daily()->at('01:00');
+$schedule->command('backup:run')->daily()->at('01:30');
+```
+
+## Performance Optimization
+
+### Opcache Configuration
+
+Enable OPcache for PHP bytecode caching:
+
+```ini /etc/php/8.2/cli/conf.d/10-opcache.ini
+opcache.enable=1
+opcache.enable_cli=1
+opcache.memory_consumption=256
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.validate_timestamps=0  # Production only
+```
+
+### Redis Caching (Optional)
+
+For better cache performance:
+
+```bash
+sudo apt-get install redis-server php8.2-redis
+```
+
+```bash .env
+CACHE_STORE=redis
+REDIS_HOST=127.0.0.1
+REDIS_PASSWORD=null
+REDIS_PORT=6379
+```
+
+### Application Optimization
+
+```bash
+php artisan optimize
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+<Warning>
+  After making config changes, clear caches and reload Octane:
+  ```bash
+  php artisan config:clear
+  php artisan octane:reload
+  ```
+</Warning>
+
+## Monitoring & Logging
+
+### Laravel Pulse
+
+Access real-time monitoring at:
+
+```
+https://heimerdinger.lol/pulse
+```
+
+Authentication via HTTP Basic Auth (configured in `routes/web.php`:86).
+
+### Discord Logging
+
+Production errors are logged to Discord via webhook:
+
+```bash .env:37
+DISCORD_ALERT_WEBHOOK="https://discord.com/api/webhooks/your_webhook"
+LOG_CHANNEL=stack
+LOG_STACK=single,discord
+```
+
+### Log Rotation
+
+Configure logrotate:
+
+```bash /etc/logrotate.d/heimerdinger
+/var/www/heimerdinger.lol/storage/logs/*.log {
+    daily
+    missingok
+    rotate 14
+    compress
+    delaycompress
+    notifempty
+    create 0640 www-data www-data
+    sharedscripts
+}
+```
+
+## Deployment Automation
+
+### Deployment Script
+
+Create a deployment script:
+
+```bash deploy.sh
+#!/bin/bash
+set -e
+
+echo "Pulling latest changes..."
+git pull origin main
+
+echo "Installing dependencies..."
+composer install --no-dev --optimize-autoloader
+npm install && npm run build
+
+echo "Running migrations..."
+php artisan migrate --force
+
+echo "Optimizing application..."
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+php artisan optimize
+
+echo "Generating sitemap..."
+php artisan sitemap:generate
+
+echo "Reloading Octane workers..."
+php artisan octane:reload
+
+echo "Purging Cloudflare cache..."
+php artisan cloudflare:purge
+
+echo "Deployment complete!"
+```
+
+Make executable:
+
+```bash
+chmod +x deploy.sh
+```
+
+## Health Checks
+
+### Octane Health Check
+
+```bash
+curl http://localhost:8000
+```
+
+### Database Connection
+
+```bash
+php artisan db:show
+```
+
+### Queue Workers Status
+
+```bash
+php artisan queue:work --once
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Octane Won't Start" icon="circle-exclamation">
+    Check logs:
+    ```bash
+    tail -f storage/logs/laravel.log
+    ```
+    
+    Verify Swoole installation:
+    ```bash
+    php --ri swoole
+    ```
+    
+    Check port availability:
+    ```bash
+    sudo lsof -i :8000
+    ```
+  </Accordion>
+
+  <Accordion title="Permission Errors" icon="lock">
+    Fix storage permissions:
+    ```bash
+    sudo chown -R www-data:www-data storage bootstrap/cache
+    sudo chmod -R 775 storage bootstrap/cache
+    ```
+  </Accordion>
+
+  <Accordion title="Cache Issues" icon="trash">
+    Clear all caches:
+    ```bash
+    php artisan cache:clear
+    php artisan config:clear
+    php artisan route:clear
+    php artisan view:clear
+    php artisan octane:reload
+    ```
+  </Accordion>
+
+  <Accordion title="Database Connection Failed" icon="database">
+    Test connection:
+    ```bash
+    php artisan tinker
+    >>> DB::connection()->getPdo();
+    ```
+    
+    Verify credentials in `.env` and MySQL user permissions.
+  </Accordion>
+</AccordionGroup>
+
+## Security Checklist
+
+<Steps>
+  <Step title="Environment">
+    - [ ] `APP_DEBUG=false`
+    - [ ] Strong `APP_KEY` generated
+    - [ ] Secure database password
+    - [ ] `.env` file not in version control
+  </Step>
+
+  <Step title="File Permissions">
+    - [ ] Storage directory writable by web server
+    - [ ] `.env` file permissions set to 600
+    - [ ] No write access to application code
+  </Step>
+
+  <Step title="Web Server">
+    - [ ] HTTPS configured with valid certificate
+    - [ ] HTTP to HTTPS redirect enabled
+    - [ ] Security headers configured
+    - [ ] Access logs enabled
+  </Step>
+
+  <Step title="Application">
+    - [ ] All routes CSRF protected
+    - [ ] Rate limiting configured
+    - [ ] HCaptcha on forms
+    - [ ] Honeypot enabled
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Artisan Commands" icon="terminal" href="/development/commands">
+    Learn about maintenance commands
+  </Card>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Configure API integrations
+  </Card>
+</CardGroup>

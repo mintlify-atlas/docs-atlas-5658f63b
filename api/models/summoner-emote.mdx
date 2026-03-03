@@ -1,0 +1,131 @@
+---
+title: 'SummonerEmote'
+description: 'SummonerEmote model representing League of Legends in-game emotes'
+---
+
+The `SummonerEmote` model represents an in-game emote that players can use during matches in League of Legends. This is a simple model with core identification and display properties.
+
+**Source**: `source/app/Models/SummonerEmote.php`
+
+## Properties
+
+### Database Columns
+
+<ParamField path="id" type="integer" required>
+  Auto-incrementing primary key
+</ParamField>
+
+<ParamField path="emote_id" type="integer" required>
+  Riot Games emote identifier
+  
+  **Database**: `integer`
+  
+  **Migration**: `source/database/migrations/2023_11_26_175055_create_summoner_emotes_table.php:13`
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Emote name or title
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_11_26_175055_create_summoner_emotes_table.php:14`
+</ParamField>
+
+<ParamField path="image" type="string" required>
+  Emote image URL or path
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_11_26_175055_create_summoner_emotes_table.php:15`
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  Record creation timestamp
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  Record last update timestamp
+</ParamField>
+
+## Relationships
+
+This model does not have any defined relationships.
+
+## Accessors & Methods
+
+This model does not define any custom accessors or methods beyond what's inherited from the base `Model` class.
+
+## Traits
+
+This model uses only the base Eloquent `Model` class without additional traits.
+
+**Source**: `source/app/Models/SummonerEmote.php:7`
+
+## Fillable Attributes
+
+The following attributes are mass-assignable:
+
+**Source**: `source/app/Models/SummonerEmote.php:9-13`
+
+- `emote_id`
+- `title`
+- `image`
+
+## Usage Example
+
+```php
+use App\Models\SummonerEmote;
+
+// Find emote by ID
+$emote = SummonerEmote::find(1);
+
+// Access properties
+echo $emote->title; // "Thumbs Up"
+echo $emote->emote_id; // 1001
+echo $emote->image; // Image URL
+
+// Find by emote_id
+$emote = SummonerEmote::where('emote_id', 1001)->first();
+
+// Create a new emote
+$newEmote = SummonerEmote::create([
+    'emote_id' => 1002,
+    'title' => 'Happy Face',
+    'image' => 'https://example.com/emote.png',
+]);
+
+// Get all emotes
+$allEmotes = SummonerEmote::all();
+
+// Search emotes by title
+$searchResults = SummonerEmote::where('title', 'like', '%happy%')->get();
+```
+
+## Model Structure
+
+This is a minimal Eloquent model with a straightforward structure. The complete model definition is only 15 lines:
+
+```php
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Model;
+
+class SummonerEmote extends Model
+{
+    protected $fillable = [
+        'emote_id',
+        'title',
+        'image',
+    ];
+}
+```
+
+**Source**: `source/app/Models/SummonerEmote.php:1-15`
+
+## Notes
+
+- This is the simplest model in the system with only three fillable attributes
+- Unlike `SummonerIcon`, this model does not use the `Sluggable` trait and routes by ID
+- No relationships are defined, suggesting emotes are standalone entities
+- No custom accessors or mutators are needed for this model's data
+- The model relies entirely on standard Eloquent functionality

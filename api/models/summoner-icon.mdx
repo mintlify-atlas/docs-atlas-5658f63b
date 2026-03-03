@@ -1,0 +1,233 @@
+---
+title: 'SummonerIcon'
+description: 'SummonerIcon model representing League of Legends summoner profile icons'
+---
+
+The `SummonerIcon` model represents a summoner profile icon in League of Legends, including metadata about esports teams, events, and availability.
+
+**Source**: `source/app/Models/SummonerIcon.php`
+
+## Properties
+
+### Database Columns
+
+<ParamField path="id" type="integer" required>
+  Auto-incrementing primary key
+</ParamField>
+
+<ParamField path="icon_id" type="integer" required>
+  Riot Games icon identifier
+  
+  **Database**: `integer`
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:13`
+</ParamField>
+
+<ParamField path="title" type="string">
+  Icon title or name
+  
+  **Database**: `string`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:14`
+</ParamField>
+
+<ParamField path="description" type="string">
+  Icon description or context (e.g., how it was obtained)
+  
+  **Database**: `string`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:15`
+</ParamField>
+
+<ParamField path="release_year" type="integer">
+  Year the icon was released
+  
+  **Database**: `integer`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:16`
+</ParamField>
+
+<ParamField path="legacy" type="boolean" required>
+  Whether the icon is legacy (no longer obtainable)
+  
+  **Database**: `boolean`
+  
+  **Casted to**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:17`
+  
+  **Model**: `source/app/Models/SummonerIcon.php:49`
+</ParamField>
+
+<ParamField path="image" type="string" required>
+  Icon image URL or path
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:18`
+</ParamField>
+
+<ParamField path="esports_team" type="string">
+  Associated esports team name (for team-specific icons)
+  
+  **Database**: `string`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:19`
+</ParamField>
+
+<ParamField path="esports_region" type="string">
+  Associated esports region (e.g., "LCK", "LCS", "LEC")
+  
+  **Database**: `string`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:20`
+</ParamField>
+
+<ParamField path="esports_event" type="string">
+  Associated esports event (e.g., "Worlds 2023", "MSI 2024")
+  
+  **Database**: `string`, nullable
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:21`
+</ParamField>
+
+<ParamField path="slug" type="string" required>
+  URL-friendly slug generated from title and sqid
+  
+  **Database**: `string`, unique index
+  
+  **Auto-generated**: Uses `Sluggable` trait combining `title` and `sqid` fields
+  
+  **Migration**: `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php:22`
+  
+  **Model**: `source/app/Models/SummonerIcon.php:25-32`
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  Record creation timestamp
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  Record last update timestamp
+</ParamField>
+
+## Relationships
+
+This model does not have any defined relationships.
+
+## Accessors & Methods
+
+### getSqidAttribute()
+
+Generates a unique, URL-friendly short ID from the icon_id using Sqids library.
+
+**Source**: `source/app/Models/SummonerIcon.php:34-39`
+
+**Returns**: `string` - 5+ character encoded ID
+
+**Purpose**: Used as part of the slug generation to ensure uniqueness when icons have similar titles
+
+```php
+$icon->sqid; // Returns something like "aBc12"
+```
+
+### getRouteKeyName()
+
+Specifies that routes should use the `slug` field instead of `id`.
+
+**Source**: `source/app/Models/SummonerIcon.php:41-44`
+
+**Returns**: `string` - "slug"
+
+## Traits
+
+### Sluggable
+
+Automatically generates URL-friendly slugs from both the title and sqid.
+
+**Source**: `source/app/Models/SummonerIcon.php:11, 25-32`
+
+**Configuration**:
+```php
+public function sluggable(): array
+{
+    return [
+        'slug' => [
+            'source' => ['title', 'sqid'],
+        ],
+    ];
+}
+```
+
+This ensures that even icons with duplicate titles will have unique slugs by incorporating the sqid.
+
+## Fillable Attributes
+
+The following attributes are mass-assignable:
+
+**Source**: `source/app/Models/SummonerIcon.php:13-23`
+
+- `icon_id`
+- `title`
+- `description`
+- `release_year`
+- `legacy`
+- `image`
+- `esports_team`
+- `esports_region`
+- `esports_event`
+
+## Casts
+
+The model automatically casts the following attributes:
+
+**Source**: `source/app/Models/SummonerIcon.php:46-50`
+
+- `legacy` → `boolean`
+
+## Usage Example
+
+```php
+use App\Models\SummonerIcon;
+
+// Find icon by slug
+$icon = SummonerIcon::where('slug', 't1-worlds-2023-abc12')->first();
+
+// Access properties
+echo $icon->title; // "T1 Worlds 2023"
+echo $icon->icon_id; // 5000
+echo $icon->image; // Image URL
+echo $icon->release_year; // 2023
+
+// Check availability
+if ($icon->legacy) {
+    echo "This icon is no longer obtainable";
+}
+
+// Access esports metadata
+if ($icon->esports_team) {
+    echo "Team: {$icon->esports_team}"; // "T1"
+    echo "Region: {$icon->esports_region}"; // "LCK"
+    echo "Event: {$icon->esports_event}"; // "Worlds 2023"
+}
+
+// Get the sqid (short ID)
+echo $icon->sqid; // "abc12"
+
+// Create a new icon
+$newIcon = SummonerIcon::create([
+    'icon_id' => 5001,
+    'title' => 'Season 14 Ranked',
+    'description' => 'Earned by reaching Gold tier',
+    'release_year' => 2024,
+    'legacy' => false,
+    'image' => 'https://example.com/icon.png',
+]);
+// Slug and sqid are automatically generated
+```
+
+## Notes
+
+- The `sqid` accessor creates a unique short identifier that's incorporated into the slug for uniqueness
+- Esports-related fields (`esports_team`, `esports_region`, `esports_event`) are nullable and only populated for team/event-specific icons
+- The `Sluggable` trait uses both `title` and `sqid` as sources to prevent slug collisions

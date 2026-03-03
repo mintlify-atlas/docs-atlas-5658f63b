@@ -1,0 +1,238 @@
+---
+title: Game assets browsing
+description: Explore League of Legends summoner icons, emotes, and other in-game assets
+---
+
+The game assets feature provides a comprehensive catalog of League of Legends in-game collectibles including summoner icons and emotes.
+
+## Overview
+
+Heimerdinger.lol's asset browser allows users to:
+
+- Browse all summoner icons with high-quality images
+- Filter icons by esports teams, regions, and events
+- Explore summoner emotes
+- View detailed information about each asset
+- Search through thousands of icons and emotes
+
+## Routes
+
+The asset features use multiple routes defined in `routes/web.php:50-58`:
+
+```php
+// Icons
+Route::get('icons', static fn () => (new SummonerIconController)->index())->name('assets.icons.index');
+Route::get('icon/{summonerIcon}', static fn (SummonerIcon $summonerIcon) => (new SummonerIconController)->show($summonerIcon))->name('assets.icons.show');
+
+// Emotes
+Route::get('emotes', static fn () => (new SummonerEmoteController)->index())->name('assets.emotes.index');
+
+// Assets hub
+Route::get('assets', static fn () => (new AssetsController)->index())->name('assets.index');
+```
+
+## Summoner Icons
+
+Summoner icons are profile pictures that players can display in League of Legends.
+
+### Icon Model
+
+Icons are represented by the `SummonerIcon` model located at `source/app/Models/SummonerIcon.php`. Key properties include:
+
+<ParamField path="id" type="integer">
+  Primary key
+</ParamField>
+
+<ParamField path="summoner_icon_id" type="integer">
+  Riot Games API icon ID
+</ParamField>
+
+<ParamField path="title" type="string">
+  Icon display name
+</ParamField>
+
+<ParamField path="image_url" type="string">
+  CDN URL for the icon image
+</ParamField>
+
+<ParamField path="year_released" type="integer" default="null">
+  Year the icon was released
+</ParamField>
+
+<ParamField path="is_legacy" type="boolean">
+  Whether the icon is legacy (limited availability)
+</ParamField>
+
+### Esports Icons
+
+Many summoner icons are tied to esports events and teams:
+
+<ParamField path="esports_team" type="string" default="null">
+  Team abbreviation (e.g., "T1", "G2", "FNC")
+</ParamField>
+
+<ParamField path="esports_region" type="string" default="null">
+  Region code (e.g., "LCK", "LEC", "LCS")
+</ParamField>
+
+<ParamField path="esports_event" type="string" default="null">
+  Event name (e.g., "Worlds 2023", "MSI 2024")
+</ParamField>
+
+### Unique Identifiers
+
+The SummonerIcon model uses two types of identifiers:
+
+<Tabs>
+  <Tab title="Slug">
+    URL-friendly slug generated from the title
+    
+    ```php
+    public function sluggable(): array
+    {
+        return [
+            'slug' => [
+                'source' => ['title', 'sqid']
+            ]
+        ];
+    }
+    ```
+    
+    Example: `t1-worlds-2023-abc123`
+  </Tab>
+  
+  <Tab title="Sqid">
+    Short, URL-safe ID using the [Sqids library](https://sqids.org/)
+    
+    ```php
+    public function getSqidAttribute(): string
+    {
+        return Sqids::encode([$this->id]);
+    }
+    ```
+    
+    Example: `4d9`
+  </Tab>
+</Tabs>
+
+<Info>
+  The slug combines both the title and sqid to ensure uniqueness even for icons with identical titles.
+</Info>
+
+## Summoner Emotes
+
+Emotes are animated expressions players can use in-game to communicate.
+
+### Emote Model
+
+Emotes are represented by the `SummonerEmote` model located at `source/app/Models/SummonerEmote.php`:
+
+```php
+class SummonerEmote extends Model
+{
+    use HasFactory;
+
+    protected $fillable = [
+        'emote_id',
+        'emote_name',
+        'inventory_icon',
+    ];
+}
+```
+
+<ParamField path="emote_id" type="integer">
+  Riot Games API emote ID
+</ParamField>
+
+<ParamField path="emote_name" type="string">
+  Emote display name
+</ParamField>
+
+<ParamField path="inventory_icon" type="string">
+  CDN URL for the emote image
+</ParamField>
+
+<Note>
+  The SummonerEmote model is minimal with no relationships, traits, or custom methods beyond basic fillable attributes.
+</Note>
+
+## Assets Hub
+
+The assets hub (`/assets`) provides a central landing page for browsing all asset types:
+
+- Summoner Icons
+- Summoner Emotes
+- Navigation to champion skins
+- Links to other collectible features
+
+<Tip>
+  The assets hub uses the `AssetsController` to aggregate and display links to all asset categories.
+</Tip>
+
+## Image Sources
+
+All asset images are served from the Community Dragon CDN:
+
+<CardGroup cols={2}>
+  <Card title="Summoner Icons" icon="image">
+    High-resolution PNG images (typically 256x256)
+  </Card>
+  <Card title="Emotes" icon="face-smile">
+    Animated or static images from inventory icons
+  </Card>
+</CardGroup>
+
+## Database Schema
+
+### Summoner Icons Table
+
+Created by migration `source/database/migrations/2023_11_15_105425_create_summoner_icons_table.php`:
+
+```sql
+CREATE TABLE summoner_icons (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    summoner_icon_id INT NOT NULL,
+    title VARCHAR(255),
+    slug VARCHAR(255),
+    image_url TEXT,
+    year_released INT,
+    is_legacy BOOLEAN,
+    esports_team VARCHAR(255),
+    esports_region VARCHAR(255),
+    esports_event VARCHAR(255),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+### Summoner Emotes Table
+
+Created by migration `source/database/migrations/2023_11_26_175055_create_summoner_emotes_table.php`:
+
+```sql
+CREATE TABLE summoner_emotes (
+    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    emote_id INT NOT NULL,
+    emote_name VARCHAR(255),
+    inventory_icon TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+```
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Champions" icon="chess-knight" href="/features/champions">
+    Browse champion database
+  </Card>
+  <Card title="Skins" icon="palette" href="/features/skins">
+    View champion skins and chromas
+  </Card>
+  <Card title="Icon Model" icon="code" href="/api/models/summoner-icon">
+    View the SummonerIcon model API reference
+  </Card>
+  <Card title="Emote Model" icon="code" href="/api/models/summoner-emote">
+    View the SummonerEmote model API reference
+  </Card>
+</CardGroup>

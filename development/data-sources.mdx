@@ -1,0 +1,335 @@
+---
+title: 'Data Sources'
+description: 'Integration with Riot API, DataDragon, Community Dragon, and Meraki Analytics'
+icon: 'database'
+---
+
+## Overview
+
+Heimdinger.lol aggregates League of Legends data from multiple sources to provide comprehensive champion, skin, and asset information. The application implements a robust fallback system to ensure data availability.
+
+### Data Source Priority
+
+<Steps>
+  <Step title="Boris API (Primary)">
+    Custom internal API providing processed champion data
+  </Step>
+  <Step title="Meraki Analytics (Fallback)">
+    Community-maintained CDN with structured LoL data
+  </Step>
+  <Step title="Community Dragon (Assets)">
+    High-quality champion images and ability icons
+  </Step>
+</Steps>
+
+## Boris Static Data Client
+
+The `BorisStaticDataClient` service is the primary interface for fetching champion and rate data with automatic fallback handling.
+
+### Service Location
+
+```php
+app/Services/BorisStaticDataClient.php
+```
+
+### Configuration
+
+Boris API credentials are configured in `config/services.php`:
+
+```php config/services.php:16
+'boris' => [
+    'url' => env('BORIS_URL', 'https://boris.heimerdinger.lol'),
+    'api_key' => env('BORIS_API_KEY'),
+],
+```
+
+<Note>
+  Set `BORIS_URL` and `BORIS_API_KEY` in your `.env` file to configure the connection.
+</Note>
+
+## Data Fetching Methods
+
+### Get Champions Data
+
+Retrieves all champion information with automatic fallback:
+
+```php app/Services/BorisStaticDataClient.php:21
+public function getChampions(): array
+{
+    $payload = $this->fetchWithFallback(
+        self::CHAMPIONS_ENDPOINT,
+        self::MERAKI_CHAMPIONS_URL,
+        fn (mixed $payload): bool => $this->isChampionPayload($payload)
+    );
+    
+    return $this->normalizeChampionPayload($payload);
+}
+```
+
+**Endpoints:**
+- **Primary**: `https://boris.heimerdinger.lol/lolstaticdata/champions.json`
+- **Fallback**: `https://cdn.merakianalytics.com/riot/lol/resources/latest/en-US/champions.json`
+
+### Get Champion Rates
+
+Fetches win rates, pick rates, and ban rates:
+
+```php app/Services/BorisStaticDataClient.php:32
+public function getChampionRates(): array
+{
+    return $this->fetchWithFallback(
+        self::CHAMPION_RATES_ENDPOINT,
+        self::MERAKI_CHAMPION_RATES_URL,
+        fn (mixed $payload): bool => $this->isChampionRatesPayload($payload)
+    );
+}
+```
+
+**Endpoints:**
+- **Primary**: `https://boris.heimerdinger.lol/lolstaticdata/championrates.json`
+- **Fallback**: `https://cdn.merakianalytics.com/riot/lol/resources/latest/en-US/championrates.json`
+
+## Fallback System
+
+The service implements a sophisticated fallback mechanism to ensure data availability:
+
+<Steps>
+  <Step title="Attempt Boris API">
+    Make request to Boris API with authentication:
+    ```php app/Services/BorisStaticDataClient.php:109
+    $response = Http::withHeaders([
+        'X-API-Key' => (string) config('services.boris.api_key'),
+    ])->get($this->borisUrl() . $endpoint);
+    ```
+  </Step>
+
+  <Step title="Validate Payload">
+    Verify the response matches expected data structure:
+    ```php app/Services/BorisStaticDataClient.php:141
+    private function isChampionPayload(mixed $payload): bool
+    {
+        if (! is_array($payload) || $payload === []) {
+            return false;
+        }
+        
+        $firstChampion = reset($payload);
+        return is_array($firstChampion) && isset($firstChampion['id']);
+    }
+    ```
+  </Step>
+
+  <Step title="Fall Back to Meraki">
+    If Boris fails or returns invalid data, fetch from Meraki:
+    ```php app/Services/BorisStaticDataClient.php:66
+    $payload = $this->fetchFromMeraki($merakiUrl);
+    
+    if ($validator($payload)) {
+        Log::warning('Using Meraki static data fallback.');
+        return $payload;
+    }
+    ```
+  </Step>
+
+  <Step title="Throw Exception">
+    If both sources fail, throw a descriptive exception:
+    ```php app/Services/BorisStaticDataClient.php:88
+    throw new RuntimeException(
+        sprintf('Unable to fetch static data from Boris or Meraki for [%s].', $borisEndpoint)
+    );
+    ```
+  </Step>
+</Steps>
+
+### Error Logging
+
+All failures are logged with context for debugging:
+
+```php app/Services/BorisStaticDataClient.php:52
+Log::warning('Boris static data request failed.', [
+    'source' => 'boris',
+    'endpoint' => $borisEndpoint,
+    'status' => $exception->getCode() ?: null,
+    'message' => $exception->getMessage(),
+]);
+```
+
+<Warning>
+  Monitor your logs for frequent fallbacks to Meraki, which may indicate Boris API issues.
+</Warning>
+
+## Community Dragon Integration
+
+Community Dragon provides high-quality champion assets directly from game files.
+
+### Champion Images
+
+Images are accessed via model accessors:
+
+```php app/Models/Champion.php:108
+public function getChampionSquareImageAttribute(): string
+{
+    return 'https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/'
+        . $this->champion_id . '.png';
+}
+```
+
+### Ability Icons
+
+Each ability has a dedicated accessor:
+
+<CodeGroup>
+```php Q Ability
+public function getChampionAbilityIconQAttribute(): string
+{
+    return 'https://cdn.communitydragon.org/latest/champion/'
+        . $this->champion_id . '/ability-icon/q';
+}
+```
+
+```php W Ability
+public function getChampionAbilityIconWAttribute(): string
+{
+    return 'https://cdn.communitydragon.org/latest/champion/'
+        . $this->champion_id . '/ability-icon/w';
+}
+```
+
+```php Passive
+public function getChampionAbilityIconPAttribute(): string
+{
+    return 'https://cdn.communitydragon.org/latest/champion/'
+        . $this->champion_id . '/ability-icon/p';
+}
+```
+</CodeGroup>
+
+### Usage in Views
+
+```blade
+<img src="{{ $champion->champion_square_image }}" alt="{{ $champion->name }}">
+<img src="{{ $champion->champion_ability_icon_q }}" alt="Q Ability">
+```
+
+## Data Normalization
+
+The service normalizes data structures between sources:
+
+```php app/Services/BorisStaticDataClient.php:176
+private function normalizeChampionPayload(array $payload): array
+{
+    // Meraki returns keyed array, Boris returns list
+    if (array_is_list($payload)) {
+        return $payload;
+    }
+    
+    return array_values($payload);
+}
+```
+
+This ensures consistent data structure regardless of source.
+
+## Payload Validation
+
+### Champion Payload
+
+Validates champion data structure:
+
+```php app/Services/BorisStaticDataClient.php:141
+private function isChampionPayload(mixed $payload): bool
+{
+    if (! is_array($payload) || $payload === []) {
+        return false;
+    }
+    
+    if (array_is_list($payload)) {
+        return isset($payload[0]['id']);
+    }
+    
+    $firstChampion = reset($payload);
+    return is_array($firstChampion) && isset($firstChampion['id']);
+}
+```
+
+### Champion Rates Payload
+
+Validates rate data structure:
+
+```php app/Services/BorisStaticDataClient.php:156
+private function isChampionRatesPayload(mixed $payload): bool
+{
+    return is_array($payload) && isset($payload['data']) && is_array($payload['data']);
+}
+```
+
+## Environment Configuration
+
+Required environment variables for data sources:
+
+```bash .env.example:20
+BORIS_URL=https://boris.heimerdinger.lol
+BORIS_API_KEY=your-api-key-here
+
+# Optional: Riot API for additional features
+RGAPI_KEY="RGAPI-00000000-0000-0000-0000-000000000000"
+USER_AGENT="Heimerdinger/1.0 (Heimerdinger.lol) PHP"
+```
+
+<Note>
+  The Riot API key (`RGAPI_KEY`) is optional for core functionality but required for live sale rotation data.
+</Note>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Caching Strategy" icon="clock">
+    Always cache API responses to reduce external requests:
+    
+    ```php
+    $champions = Cache::remember('champions_data', 3600, function() {
+        return app(BorisStaticDataClient::class)->getChampions();
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Error Handling" icon="triangle-exclamation">
+    Wrap data fetching in try-catch blocks:
+    
+    ```php
+    try {
+        $champions = $client->getChampions();
+    } catch (RuntimeException $e) {
+        Log::error('Failed to fetch champions', ['error' => $e->getMessage()]);
+        // Return cached data or show error message
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Rate Limiting" icon="gauge">
+    Respect API rate limits by implementing appropriate caching and request throttling.
+  </Accordion>
+</AccordionGroup>
+
+## Testing Data Sources
+
+Test the Boris client in Tinker:
+
+```bash
+php artisan tinker
+```
+
+```php
+$client = app(\App\Services\BorisStaticDataClient::class);
+$champions = $client->getChampions();
+count($champions); // Should return ~160+ champions
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture" icon="sitemap" href="/development/architecture">
+    Understand the overall application architecture
+  </Card>
+  <Card title="Artisan Commands" icon="terminal" href="/development/commands">
+    Learn about available CLI commands for data management
+  </Card>
+</CardGroup>

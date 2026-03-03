@@ -1,0 +1,388 @@
+---
+title: Installation
+description: Step-by-step guide to install Heimerdinger.lol on your local machine or server
+---
+
+## Prerequisites
+
+Before installing Heimerdinger.lol, ensure your system meets these requirements:
+
+<CardGroup cols={2}>
+  <Card title="PHP 8.2+" icon="php">
+    Laravel 11 requires PHP version 8.2 or higher with required extensions
+  </Card>
+  <Card title="Composer" icon="box">
+    Dependency manager for PHP packages
+  </Card>
+  <Card title="Node.js & npm" icon="node">
+    Required for building frontend assets with Vite
+  </Card>
+  <Card title="MySQL 8.0+" icon="database">
+    Relational database for storing application data
+  </Card>
+</CardGroup>
+
+<Note>
+  For a complete list of Laravel server requirements, visit the [Laravel Documentation](https://laravel.com/docs/11.x/deployment#server-requirements).
+</Note>
+
+### Required PHP Extensions
+
+Ensure the following PHP extensions are installed and enabled:
+
+- OpenSSL
+- PDO
+- Mbstring
+- Tokenizer
+- XML
+- Ctype
+- JSON
+- BCMath
+- Fileinfo
+- GD or Imagick (for image processing)
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the Heimerdinger.lol repository to your local machine:
+
+    ```bash
+    git clone https://github.com/rico-vz/HeimerdingerLoL.git
+    cd HeimerdingerLoL
+    ```
+
+    This downloads the complete source code including all Laravel application files, migrations, and frontend assets.
+  </Step>
+
+  <Step title="Install PHP Dependencies">
+    Use Composer to install all required PHP packages:
+
+    ```bash
+    composer install
+    ```
+
+    This installs all dependencies defined in `composer.json:10-33`, including:
+
+    - Laravel Framework 11.x
+    - Laravel Octane for performance
+    - Laravel Pulse for monitoring
+    - Spatie packages for backup, sitemap, and query building
+    - Image processing libraries
+    - And more...
+
+    <Note>
+      The installation may take several minutes depending on your internet connection.
+    </Note>
+  </Step>
+
+  <Step title="Install Node Dependencies">
+    Install frontend dependencies using npm:
+
+    ```bash
+    npm install
+    ```
+
+    This installs packages from `package.json:12-28`, including:
+
+    - Vite for asset bundling
+    - TailwindCSS for styling
+    - Flowbite for UI components
+    - Axios for HTTP requests
+  </Step>
+
+  <Step title="Environment Configuration">
+    Copy the example environment file and generate an application key:
+
+    ```bash
+    cp .env.example .env
+    php artisan key:generate
+    ```
+
+    The `key:generate` command creates a secure encryption key stored in your `.env` file. This key is used for encrypting session data and other sensitive information.
+
+    <Warning>
+      Never commit your `.env` file to version control. It contains sensitive credentials.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Environment Variables">
+    Open the `.env` file and configure essential variables:
+
+    ```bash .env
+    APP_NAME=Heimerdinger
+    APP_ENV=local
+    APP_URL=http://127.0.0.1:8000
+    APP_TIMEZONE=Europe/Amsterdam
+
+    DB_CONNECTION=mysql
+    DB_HOST=127.0.0.1
+    DB_PORT=3306
+    DB_DATABASE=heimerdinger_db
+    DB_USERNAME=root
+    DB_PASSWORD=your_password
+
+    RGAPI_KEY="RGAPI-your-riot-api-key"
+    ```
+
+    See the [Configuration Guide](/configuration) for detailed information about all environment variables.
+  </Step>
+
+  <Step title="Create Database">
+    Create a MySQL database for the application:
+
+    ```bash
+    mysql -u root -p
+    ```
+
+    Then in the MySQL prompt:
+
+    ```sql
+    CREATE DATABASE heimerdinger_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    EXIT;
+    ```
+
+    The database name should match the `DB_DATABASE` value in your `.env` file (.env.example:51).
+  </Step>
+
+  <Step title="Run Database Migrations">
+    Execute migrations to create all required database tables:
+
+    ```bash
+    php artisan migrate
+    ```
+
+    This creates tables for:
+
+    - **champions** - Champion data and statistics (database/migrations/2023_10_25_180120_create_champions_table.php:1)
+    - **champion_skins** - Skin information and pricing (database/migrations/2023_10_26_175822_create_champion_skins_table.php:1)
+    - **users** - User authentication (database/migrations/2014_10_12_000000_create_users_table.php:1)
+    - **pulse_*** - Laravel Pulse monitoring tables (database/migrations/2023_06_07_000001_create_pulse_tables.php:1)
+    - And other supporting tables
+
+    <Note>
+      If you need to reset the database, use `php artisan migrate:fresh` (this will delete all data).
+    </Note>
+  </Step>
+
+  <Step title="Build Frontend Assets">
+    Compile CSS and JavaScript assets:
+
+    <CodeGroup>
+    ```bash Development
+    npm run dev
+    ```
+
+    ```bash Production
+    npm run build
+    ```
+    </CodeGroup>
+
+    The development command starts the Vite dev server with hot module replacement. For production deployments, use the build command to create optimized assets.
+
+    Vite compiles files from `vite.config.js:8`:
+    - `resources/css/app.css` - TailwindCSS styles
+    - `resources/js/app.js` - Main JavaScript
+    - `resources/js/lane-filter.js` - Champion lane filtering
+    - `resources/js/horizontal-scroll.js` - UI scroll behavior
+  </Step>
+
+  <Step title="Start the Development Server">
+    Launch the Laravel development server:
+
+    <CodeGroup>
+    ```bash Standard Server
+    php artisan serve
+    ```
+
+    ```bash With Octane (Swoole)
+    php artisan octane:start
+    ```
+
+    ```bash Both Laravel & Vite
+    npm run dev-all
+    ```
+    </CodeGroup>
+
+    The application will be available at `http://127.0.0.1:8000` (or the URL specified in `APP_URL`).
+
+    <Note>
+      For development, run `npm run dev-all` (package.json:9) to start both the Laravel server and Vite dev server simultaneously.
+    </Note>
+  </Step>
+</Steps>
+
+## Post-Installation
+
+### Verify Installation
+
+Visit `http://127.0.0.1:8000` in your browser. You should see the Heimerdinger.lol homepage.
+
+### Seed the Database (Optional)
+
+If you want to populate the database with test data:
+
+```bash
+php artisan db:seed
+```
+
+### Storage Link
+
+Create a symbolic link for public storage access:
+
+```bash
+php artisan storage:link
+```
+
+This creates a link from `public/storage` to `storage/app/public`, allowing uploaded files to be publicly accessible.
+
+## Development Dependencies
+
+For development, the following additional tools are included (composer.json:35-46):
+
+<AccordionGroup>
+  <Accordion title="Laravel Debugbar">
+    Displays debug information in the browser including queries, routes, and performance metrics.
+
+    ```bash
+    # Already installed with composer install
+    # Access at the bottom of any page in local environment
+    ```
+  </Accordion>
+
+  <Accordion title="Laravel IDE Helper">
+    Generates helper files for better IDE autocompletion.
+
+    ```bash
+    php artisan ide-helper:generate
+    php artisan ide-helper:meta
+    ```
+
+    These commands run automatically after `composer update` (composer.json:70-71).
+  </Accordion>
+
+  <Accordion title="Laravel Pint">
+    Code style fixer for maintaining consistent code formatting.
+
+    ```bash
+    ./vendor/bin/pint
+    # or
+    npm run laravel-pint
+    ```
+  </Accordion>
+
+  <Accordion title="Rector">
+    Automated code refactoring and PHP version upgrades.
+
+    ```bash
+    ./vendor/bin/rector process
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Production Deployment
+
+For production environments, additional steps are recommended:
+
+<Steps>
+  <Step title="Optimize Configuration">
+    Cache configuration files for better performance:
+
+    ```bash
+    php artisan config:cache
+    php artisan route:cache
+    php artisan view:cache
+    ```
+  </Step>
+
+  <Step title="Set Production Environment">
+    Update your `.env` file:
+
+    ```bash .env
+    APP_ENV=production
+    APP_DEBUG=false
+    ```
+
+    <Warning>
+      Never set `APP_DEBUG=true` in production as it exposes sensitive information.
+    </Warning>
+  </Step>
+
+  <Step title="Configure Laravel Octane">
+    For maximum performance, use Laravel Octane with Swoole:
+
+    ```bash
+    # Install Swoole extension
+    pecl install swoole
+
+    # Start Octane server
+    php artisan octane:start --server=swoole --host=0.0.0.0 --port=8000
+    ```
+
+    Configure Octane settings in `.env` (env.example:25-26):
+    ```bash
+    OCTANE_SERVER=swoole
+    OCTANE_HTTPS=false
+    ```
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Permission Errors">
+    If you encounter permission errors, ensure the web server has write access to:
+
+    ```bash
+    chmod -R 775 storage bootstrap/cache
+    chown -R www-data:www-data storage bootstrap/cache
+    ```
+  </Accordion>
+
+  <Accordion title="Composer Memory Limit">
+    If Composer runs out of memory:
+
+    ```bash
+    COMPOSER_MEMORY_LIMIT=-1 composer install
+    ```
+  </Accordion>
+
+  <Accordion title="Missing PHP Extensions">
+    Check which extensions are loaded:
+
+    ```bash
+    php -m
+    ```
+
+    Install missing extensions using your package manager (apt, yum, brew, etc.).
+  </Accordion>
+
+  <Accordion title="Database Connection Errors">
+    Verify your database credentials in `.env` and ensure MySQL is running:
+
+    ```bash
+    sudo systemctl status mysql
+    # or
+    mysql -u root -p -e "SELECT 1;"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="Configuration Guide"
+    icon="gear"
+    href="/configuration"
+  >
+    Configure API keys, environment variables, and application settings
+  </Card>
+  <Card
+    title="Contributing"
+    icon="code-pull-request"
+    href="https://github.com/rico-vz/HeimerdingerLoL/blob/main/CONTRIBUTING.md"
+  >
+    Learn how to contribute to the project
+  </Card>
+</CardGroup>

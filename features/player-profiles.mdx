@@ -1,0 +1,222 @@
+---
+title: Player profile lookup
+description: Look up League of Legends player profiles by Riot ID to view rank, level, and mastery points
+---
+
+The player profile lookup feature allows users to search for and view League of Legends player information using their Riot ID.
+
+## Overview
+
+Heimerdinger.lol's player profile feature:
+
+- Searches players by Riot ID format (Name#TAG)
+- Displays player rank and division
+- Shows account level and experience
+- Presents champion mastery points
+- Integrates with the Riot Games API
+
+<Note>
+  The Riot ID format changed in 2023. Players now use a **Name#TAG** format (e.g., `Faker#KR1`) instead of the old summoner name system.
+</Note>
+
+## Riot ID Format
+
+Riot IDs consist of two parts:
+
+<CardGroup cols={2}>
+  <Card title="Game Name" icon="user">
+    The player's display name (up to 16 characters)
+    
+    Example: `Faker`
+  </Card>
+  <Card title="Tagline" icon="hashtag">
+    A unique identifier (3-5 characters)
+    
+    Example: `KR1`
+  </Card>
+</CardGroup>
+
+### Complete Riot ID Example
+
+```
+Faker#KR1
+Doublelift#NA1
+Rekkles#2773
+```
+
+<Warning>
+  The tagline is **case-sensitive** and required for accurate player lookup.
+</Warning>
+
+## How to Find Your Riot ID
+
+Players can find their Riot ID in several places:
+
+<Steps>
+  <Step title="In-game client">
+    Your Riot ID is displayed in the top-right corner of the League of Legends client
+  </Step>
+  
+  <Step title="Profile page">
+    Click on your profile to see your full Riot ID with tagline
+  </Step>
+  
+  <Step title="Match history">
+    Your Riot ID appears in your match history and on loading screens
+  </Step>
+</Steps>
+
+## API Integration
+
+The player profile feature uses the Riot Games API to fetch player data:
+
+### Required Configuration
+
+Set your Riot Games API key in `.env`:
+
+```bash
+RGAPI_KEY="RGAPI-00000000-0000-0000-0000-000000000000"
+```
+
+<Tip>
+  Get your API key from the [Riot Developer Portal](https://developer.riotgames.com/).
+</Tip>
+
+### User Agent
+
+The Riot API requires a custom user agent:
+
+```bash
+USER_AGENT="Heimerdinger/1.0 (Heimerdinger.lol) PHP"
+```
+
+<Info>
+  The user agent format follows Riot's guidelines: `{Product Name}/{Version} ({Website}) {Technology}`
+</Info>
+
+## Player Data
+
+The player profile displays several types of information:
+
+### Account Information
+
+- **Summoner Name** - Display name
+- **Tagline** - Riot ID tag
+- **Level** - Account level (1-500+)
+- **Profile Icon** - Selected summoner icon
+
+### Ranked Information
+
+- **Rank** - Tier and division (e.g., Diamond III)
+- **LP** - League Points
+- **Win/Loss** - Win rate statistics
+- **Queue Type** - Ranked Solo/Duo, Flex, etc.
+
+### Champion Mastery
+
+- **Top Champions** - Highest mastery champions
+- **Mastery Points** - Total points per champion
+- **Mastery Level** - Level 1-7 for each champion
+- **Chest Earned** - Whether the chest has been earned
+
+## Riot Games API Endpoints
+
+The player profile feature likely uses these Riot API endpoints:
+
+<Accordion title="Account-v1">
+  `GET /riot/account/v1/accounts/by-riot-id/{gameName}/{tagLine}`
+  
+  Retrieves account information by Riot ID
+</Accordion>
+
+<Accordion title="Summoner-v4">
+  `GET /lol/summoner/v4/summoners/by-puuid/{encryptedPUUID}`
+  
+  Gets summoner data including level and profile icon
+</Accordion>
+
+<Accordion title="League-v4">
+  `GET /lol/league/v4/entries/by-summoner/{encryptedSummonerId}`
+  
+  Retrieves ranked information for a summoner
+</Accordion>
+
+<Accordion title="Champion-Mastery-v4">
+  `GET /lol/champion-mastery/v4/champion-masteries/by-puuid/{encryptedPUUID}`
+  
+  Gets champion mastery data for a player
+</Accordion>
+
+## Rate Limiting
+
+<Warning>
+  The Riot Games API has strict rate limits. Heimerdinger.lol should implement caching to avoid exceeding these limits.
+</Warning>
+
+### Development API Key Limits
+
+- **20 requests per second**
+- **100 requests every 2 minutes**
+
+### Production API Key Limits
+
+Production keys have higher limits based on your application tier.
+
+<Tip>
+  Consider caching player data for 5-15 minutes to balance freshness with API rate limits.
+</Tip>
+
+## Privacy Considerations
+
+<Info>
+  All player data displayed is publicly available through the Riot Games API and the League of Legends client.
+</Info>
+
+### Data Collection
+
+Heimerdinger.lol should:
+
+- Only display data available through official Riot APIs
+- Not store sensitive player information
+- Respect Riot's API Terms of Service
+- Include proper attribution to Riot Games
+
+## Disclaimer
+
+As stated in the project README:
+
+<Note>
+  Heimerdinger.lol was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
+</Note>
+
+## Regional Endpoints
+
+The Riot API uses different endpoints for different regions:
+
+| Region | Routing Value | Examples |
+|--------|---------------|----------|
+| Americas | `americas` | NA, BR, LAN, LAS |
+| Asia | `asia` | KR, JP |
+| Europe | `europe` | EUW, EUNE, TR, RU |
+| Southeast Asia | `sea` | OCE, PH, SG, TH, TW, VN |
+
+<Warning>
+  You must use the correct regional routing value when making API calls to retrieve account data.
+</Warning>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Champions" icon="chess-knight" href="/features/champions">
+    View champion mastery data for players
+  </Card>
+  <Card title="Assets" icon="images" href="/features/assets">
+    Browse summoner icons used in player profiles
+  </Card>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Learn about Riot API integration
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Set up your Riot API credentials
+  </Card>
+</CardGroup>

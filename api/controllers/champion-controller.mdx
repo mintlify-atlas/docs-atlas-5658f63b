@@ -1,0 +1,302 @@
+---
+title: ChampionController
+description: Controller for displaying champion lists and individual champion detail pages
+---
+
+The `ChampionController` handles HTTP requests for champion browsing and detail pages.
+
+## Overview
+
+Located at `source/app/Http/Controllers/ChampionController.php`, this controller:
+
+- Displays paginated champion lists with role information
+- Shows individual champion details with relationships
+- Implements aggressive caching for performance
+- Uses route model binding for clean URLs
+
+## Class Definition
+
+```php
+namespace App\Http\Controllers;
+
+use App\Models\Champion;
+use App\Models\ChampionRoles;
+use Illuminate\Support\Facades\Cache;
+
+class ChampionController extends Controller
+{
+    // Controller methods
+}
+```
+
+## Routes
+
+Defined in `source/routes/web.php:44-45`:
+
+```php
+Route::get('champions', static fn () => (new ChampionController)->index())
+    ->name('champions.index');
+    
+Route::get('champion/{champion}', static fn (Champion $champion) => (new ChampionController)->show($champion))
+    ->name('champions.show');
+```
+
+## Methods
+
+### index()
+
+Displays a listing of all champions.
+
+```php
+public function index()
+{
+    $eightHoursInSeconds = 60 * 60 * 8;
+
+    $champions = Cache::remember('championsListAllCache', $eightHoursInSeconds, 
+        static fn() => Champion::orderBy('name')->get()
+    );
+
+    $roles = Cache::remember('championsRolesCache', $eightHoursInSeconds, 
+        static fn() => ChampionRoles::orderBy('champion_name')->get()
+    );
+
+    return view('champions.index', ['champions' => $champions, 'roles' => $roles]);
+}
+```
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `champions.index` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="champions" type="Collection<Champion>">
+  All champions ordered alphabetically by name
+</ResponseField>
+
+<ResponseField name="roles" type="Collection<ChampionRoles>">
+  Champion role/lane assignments ordered by champion name
+</ResponseField>
+
+#### Cache Strategy
+
+<Info>
+  Results are cached for **8 hours** using two separate cache keys:
+  - `championsListAllCache` - Champion collection
+  - `championsRolesCache` - Role assignments
+</Info>
+
+#### Query Performance
+
+```php
+Champion::orderBy('name')->get()
+```
+
+- **No eager loading** on index page (to minimize payload size)
+- **Alphabetical sorting** by champion name
+- **Returns all champions** in a single query
+
+#### Usage Example
+
+Access the champion list at:
+
+```
+GET /champions
+```
+
+### show()
+
+Displays a specific champion's detail page.
+
+```php
+public function show(Champion $champion)
+{
+    $threeDaysInSeconds = 60 * 60 * 24 * 3;
+
+    $champion = Cache::remember('championShowCache' . $champion->slug, $threeDaysInSeconds, 
+        static fn() => $champion->load('streamers', 'skins', 'lanes')
+    );
+
+    $streamers = $champion->streamers;
+
+    return view('champions.show', ['champion' => $champion, 'streamers' => $streamers]);
+}
+```
+
+#### Parameters
+
+<ParamField path="champion" type="Champion" required>
+  Champion model instance (automatically resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `champions.show` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="champion" type="Champion">
+  Champion model with eager-loaded relationships:
+  - `streamers` - Associated Twitch streamers
+  - `skins` - All skins for this champion
+  - `lanes` - Recommended lanes/roles
+</ResponseField>
+
+<ResponseField name="streamers" type="Collection<Streamer>">
+  Collection of streamers who play this champion (extracted for convenience)
+</ResponseField>
+
+#### Cache Strategy
+
+<Note>
+  Each champion page is cached for **3 days** (72 hours) with a unique cache key based on the champion's slug.
+</Note>
+
+Cache key format: `championShowCache{slug}`
+
+Examples:
+- `championShowCacheahri`
+- `championShowCaseyasuo`
+- `championShowCaselee-sin`
+
+#### Route Model Binding
+
+Laravel automatically resolves the `{champion}` route parameter:
+
+```php
+// URL: /champion/ahri
+// Laravel finds: Champion::where('slug', 'ahri')->firstOrFail()
+```
+
+<Warning>
+  If a champion with the given slug doesn't exist, Laravel returns a **404 Not Found** error automatically.
+</Warning>
+
+#### Usage Example
+
+Access a champion detail page:
+
+```
+GET /champion/ahri
+GET /champion/lee-sin
+GET /champion/master-yi
+```
+
+## Eager Loading Strategy
+
+### Index Page (No Eager Loading)
+
+The index page doesn't eager load relationships to keep the payload small:
+
+```php
+Champion::orderBy('name')->get()
+```
+
+**Reason:** The index page only displays champion names and icons, not related data.
+
+### Show Page (Aggressive Eager Loading)
+
+The detail page loads all necessary relationships upfront:
+
+```php
+$champion->load('streamers', 'skins', 'lanes')
+```
+
+**Loaded Relationships:**
+
+<Accordion title="streamers">
+  **Type:** `HasMany`
+  
+  Twitch streamers associated with this champion
+  
+  ```php
+  public function streamers(): HasMany
+  {
+      return $this->hasMany(Streamer::class, 'champion_name', 'name');
+  }
+  ```
+</Accordion>
+
+<Accordion title="skins">
+  **Type:** `HasMany`
+  
+  All skins available for this champion
+  
+  ```php
+  public function skins(): HasMany
+  {
+      return $this->hasMany(ChampionSkin::class, 'champion_id', 'champion_id');
+  }
+  ```
+</Accordion>
+
+<Accordion title="lanes">
+  **Type:** `HasMany`
+  
+  Recommended lanes and roles for this champion
+  
+  ```php
+  public function lanes(): HasMany
+  {
+      return $this->hasMany(ChampionRoles::class, 'champion_name', 'name');
+  }
+  ```
+</Accordion>
+
+## Cache Invalidation
+
+The controller doesn't automatically invalidate cache when champion data changes. Manual cache clearing may be needed after data updates:
+
+```php
+// Clear champion list cache
+Cache::forget('championsListAllCache');
+Cache::forget('championsRolesCache');
+
+// Clear specific champion detail cache
+Cache::forget('championShowCache' . $champion->slug);
+
+// Or clear all champion caches
+Cache::flush();
+```
+
+<Tip>
+  Consider implementing cache tags or event listeners to automatically invalidate caches when champion data is updated.
+</Tip>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="8-Hour Index Cache" icon="gauge-high">
+    Champion list rarely changes, so 8-hour cache is appropriate
+  </Card>
+  <Card title="3-Day Detail Cache" icon="clock">
+    Individual champions change even less frequently
+  </Card>
+  <Card title="Eager Loading" icon="database">
+    Prevents N+1 queries on detail pages
+  </Card>
+  <Card title="Route Model Binding" icon="link">
+    Automatic model resolution keeps controllers clean
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Champion Model" icon="code" href="/api/models/champion">
+    View the Champion model API reference
+  </Card>
+  <Card title="Champion Feature" icon="book" href="/features/champions">
+    Learn about the champion browsing feature
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/development/architecture">
+    Understand the MVC architecture
+  </Card>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Learn where champion data comes from
+  </Card>
+</CardGroup>

@@ -1,0 +1,197 @@
+---
+title: Champion browsing
+description: Explore and discover League of Legends champions with detailed information and statistics
+---
+
+The champion browsing feature provides a comprehensive database of all League of Legends champions with detailed information, images, and gameplay statistics.
+
+## Overview
+
+Heimerdinger.lol's champion feature allows users to:
+
+- Browse all available League of Legends champions
+- Sort champions by name alphabetically
+- View champion roles and lane assignments
+- Access detailed champion pages with abilities, skins, and streamer recommendations
+- Fast loading with intelligent caching (8-hour cache)
+
+## Routes
+
+The champion feature uses two main routes defined in `routes/web.php:44-45`:
+
+```php
+Route::get('champions', static fn () => (new ChampionController)->index())->name('champions.index');
+Route::get('champion/{champion}', static fn (Champion $champion) => (new ChampionController)->show($champion))->name('champions.show');
+```
+
+## Champion List Page
+
+The `ChampionController::index()` method (source/app/Http/Controllers/ChampionController.php:14-23) displays all champions:
+
+```php
+public function index()
+{
+    $eightHoursInSeconds = 60 * 60 * 8;
+
+    $champions = Cache::remember('championsListAllCache', $eightHoursInSeconds, 
+        static fn() => Champion::orderBy('name')->get()
+    );
+
+    $roles = Cache::remember('championsRolesCache', $eightHoursInSeconds, 
+        static fn() => ChampionRoles::orderBy('champion_name')->get()
+    );
+
+    return view('champions.index', ['champions' => $champions, 'roles' => $roles]);
+}
+```
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card title="Performance" icon="gauge-high">
+    Results are cached for 8 hours to ensure fast page loads
+  </Card>
+  <Card title="Sorting" icon="arrow-down-a-z">
+    Champions are alphabetically sorted by name
+  </Card>
+  <Card title="Role Data" icon="chess-knight">
+    Includes champion role/lane information for filtering
+  </Card>
+  <Card title="Route Model Binding" icon="link">
+    Uses Laravel's route model binding for clean URLs
+  </Card>
+</CardGroup>
+
+## Champion Detail Page
+
+The `ChampionController::show()` method (source/app/Http/Controllers/ChampionController.php:28-37) displays individual champion details:
+
+```php
+public function show(Champion $champion)
+{
+    $threeDaysInSeconds = 60 * 60 * 24 * 3;
+
+    $champion = Cache::remember('championShowCache' . $champion->slug, $threeDaysInSeconds, 
+        static fn() => $champion->load('streamers', 'skins', 'lanes')
+    );
+
+    $streamers = $champion->streamers;
+
+    return view('champions.show', ['champion' => $champion, 'streamers' => $streamers]);
+}
+```
+
+### Eager Loading
+
+The champion detail page uses [eager loading](https://laravel.com/docs/eloquent-relationships#eager-loading) to optimize database queries:
+
+<Accordion title="Loaded Relationships">
+  - **streamers** - Twitch streamers who play this champion
+  - **skins** - All skins available for this champion
+  - **lanes** - Recommended lanes/roles for this champion
+</Accordion>
+
+### Cache Strategy
+
+<Note>
+  Champion detail pages are cached for **3 days** (72 hours) with a unique cache key per champion slug.
+</Note>
+
+## Champion Model
+
+Champions are represented by the `Champion` model located at `source/app/Models/Champion.php`. The model includes:
+
+### Database Properties
+
+- **id** - Primary key (integer)
+- **champion_id** - Riot Games API champion ID
+- **name** - Champion display name (e.g., "Ahri", "Yasuo")
+- **title** - Champion title (e.g., "The Nine-Tailed Fox")
+- **slug** - URL-friendly identifier
+- **icon** - Champion portrait icon URL
+- **resource** - Resource type (Mana, Energy, etc.)
+- **adaptive_type** - Damage type (Physical/Magic)
+- **attack_type** - Melee or Ranged
+
+### Relationships
+
+```php
+// Has many skins
+public function skins(): HasMany
+{
+    return $this->hasMany(ChampionSkin::class, 'champion_id', 'champion_id');
+}
+
+// Has many lane assignments
+public function lanes(): HasMany
+{
+    return $this->hasMany(ChampionRoles::class, 'champion_name', 'name');
+}
+
+// Has many associated streamers
+public function streamers(): HasMany
+{
+    return $this->hasMany(Streamer::class, 'champion_name', 'name');
+}
+```
+
+## Champion Images
+
+The Champion model provides several image accessors for different display contexts:
+
+<Tabs>
+  <Tab title="Square Icon">
+    ```php
+    $champion->champion_square_icon
+    // Community Dragon square icon (120x120)
+    ```
+  </Tab>
+  <Tab title="Loading Screen">
+    ```php
+    $champion->champion_loading_screen_path
+    // Full champion loading screen image
+    ```
+  </Tab>
+  <Tab title="Splash Art">
+    ```php
+    $champion->champion_splash_art
+    // High-resolution splash art
+    ```
+  </Tab>
+  <Tab title="Abilities">
+    ```php
+    $champion->passive_icon
+    $champion->q_icon
+    $champion->w_icon
+    $champion->e_icon
+    $champion->r_icon
+    // Ability icons from Community Dragon
+    ```
+  </Tab>
+</Tabs>
+
+## Data Source
+
+Champion data is fetched from:
+
+1. **Boris API** (primary) - Internal API service
+2. **Meraki Analytics** (fallback) - Community-maintained champion data
+
+See [Data Sources](/development/data-sources) for more information on the data fetching strategy.
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Skins" icon="palette" href="/features/skins">
+    Browse champion skins and chromas
+  </Card>
+  <Card title="Assets" icon="images" href="/features/assets">
+    Explore summoner icons and emotes
+  </Card>
+  <Card title="Champion Model" icon="code" href="/api/models/champion">
+    View the full Champion model API reference
+  </Card>
+  <Card title="Controller API" icon="server" href="/api/controllers/champion-controller">
+    See the ChampionController documentation
+  </Card>
+</CardGroup>

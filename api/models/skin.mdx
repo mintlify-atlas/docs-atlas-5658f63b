@@ -1,0 +1,382 @@
+---
+title: 'ChampionSkin'
+description: 'ChampionSkin model representing champion skins with properties, relationships, and image methods'
+---
+
+The `ChampionSkin` model represents a skin for a League of Legends champion, including pricing, rarity, visual features, and associated metadata.
+
+**Source**: `source/app/Models/ChampionSkin.php`
+
+## Properties
+
+### Database Columns
+
+<ParamField path="id" type="integer" required>
+  Auto-incrementing primary key
+</ParamField>
+
+<ParamField path="champion_id" type="integer" required>
+  Foreign key linking to the champion this skin belongs to
+  
+  **Database**: `integer`, foreign key to `champions.champion_id`
+  
+  **Cascade**: Deletes when parent champion is deleted
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:14,33`
+</ParamField>
+
+<ParamField path="full_skin_id" type="integer" required>
+  Combined champion and skin ID (e.g., champion_id=103, skin_id=8 → 103008)
+  
+  **Database**: `unsignedBigInteger`, unique index
+  
+  **Purpose**: Used as foreign key for skin chromas relationship
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:15`
+</ParamField>
+
+<ParamField path="skin_id" type="integer" required>
+  Skin's unique identifier within the champion (e.g., 0 for base skin, 1+ for other skins)
+  
+  **Database**: `integer`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:16`
+</ParamField>
+
+<ParamField path="skin_name" type="string" required>
+  Display name of the skin (e.g., "K/DA ALL OUT", "Spirit Blossom")
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:17`
+</ParamField>
+
+<ParamField path="lore" type="string" required>
+  Skin's backstory and lore text
+  
+  **Database**: `longText`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:18`
+</ParamField>
+
+<ParamField path="availability" type="string" required>
+  Availability status (e.g., "Available", "Legacy", "Limited")
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:19`
+</ParamField>
+
+<ParamField path="loot_eligible" type="boolean" required>
+  Whether the skin can be obtained through loot/hextech crafting
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:20`
+</ParamField>
+
+<ParamField path="rp_price" type="integer" required>
+  Skin price in Riot Points
+  
+  **Database**: `bigInteger`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:21`
+</ParamField>
+
+<ParamField path="rarity" type="string" required>
+  Skin rarity tier (e.g., "Epic", "Legendary", "Ultimate")
+  
+  **Database**: `string` (note: original migration has typo "raritiy")
+  
+  **Accessor**: Converts null or "NoRarity" to "Common"
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:22`
+  
+  **Model**: `source/app/Models/ChampionSkin.php:51-54`
+</ParamField>
+
+<ParamField path="release_date" type="string" required>
+  Skin's release date
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:23`
+</ParamField>
+
+<ParamField path="associated_skinline" type="array" required>
+  Array of associated skin line/theme names (e.g., ["K/DA", "Prestige"])
+  
+  **Database**: `json`
+  
+  **Casted to**: `array` - automatically serialized/deserialized
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:24`
+  
+  **Model**: `source/app/Models/ChampionSkin.php:84`
+</ParamField>
+
+<ParamField path="new_effects" type="boolean" required>
+  Whether the skin has new visual effects
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:25`
+</ParamField>
+
+<ParamField path="new_animations" type="boolean" required>
+  Whether the skin has new animations
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:26`
+</ParamField>
+
+<ParamField path="new_recall" type="boolean" required>
+  Whether the skin has a new recall animation
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:27`
+</ParamField>
+
+<ParamField path="new_voice" type="boolean" required>
+  Whether the skin has new voice processing/filter
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:28`
+</ParamField>
+
+<ParamField path="new_quotes" type="boolean" required>
+  Whether the skin has new voice lines/quotes
+  
+  **Database**: `boolean`
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:29`
+</ParamField>
+
+<ParamField path="voice_actor" type="array" required>
+  Array of voice actor names for this skin
+  
+  **Database**: `json`
+  
+  **Casted to**: `array` - automatically serialized/deserialized
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:30`
+  
+  **Model**: `source/app/Models/ChampionSkin.php:85`
+</ParamField>
+
+<ParamField path="splash_artist" type="array" required>
+  Array of splash art artist names
+  
+  **Database**: `json`
+  
+  **Casted to**: `array` - automatically serialized/deserialized
+  
+  **Migration**: `source/database/migrations/2023_10_26_175822_create_champion_skins_table.php:31`
+  
+  **Model**: `source/app/Models/ChampionSkin.php:86`
+</ParamField>
+
+<ParamField path="slug" type="string">
+  URL-friendly slug generated from skin name (used for routing)
+  
+  **Database**: `string`, unique index, nullable
+  
+  **Auto-generated**: Uses `Sluggable` trait to generate from `skin_name` field
+  
+  **Migration**: `source/database/migrations/2023_11_01_140156_add_slug_to_champion_skins.php:12`
+  
+  **Model**: `source/app/Models/ChampionSkin.php:37-49`
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  Record creation timestamp
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  Record last update timestamp
+</ParamField>
+
+## Relationships
+
+### champion()
+
+Returns the champion that owns this skin.
+
+**Type**: `BelongsTo`
+
+**Related Model**: `Champion`
+
+**Foreign Key**: `champion_id`
+
+**Source**: `source/app/Models/ChampionSkin.php:56-59`
+
+```php
+$skin->champion; // Champion model
+```
+
+### chromas()
+
+Returns all chromas (color variants) for this skin.
+
+**Type**: `HasMany`
+
+**Related Model**: `SkinChroma`
+
+**Foreign Key**: `full_skin_id`
+
+**Source**: `source/app/Models/ChampionSkin.php:61-64`
+
+```php
+$skin->chromas; // Collection of SkinChroma models
+```
+
+## Accessors & Methods
+
+### getRarityAttribute($value)
+
+Mutator that converts null or "NoRarity" values to "Common".
+
+**Source**: `source/app/Models/ChampionSkin.php:51-54`
+
+**Returns**: `string`
+
+```php
+$skin->rarity; // Returns "Common" if value is null or "NoRarity"
+```
+
+### getSkinImageAttribute($uncentered = false)
+
+Returns the skin's splash art image URL.
+
+**Source**: `source/app/Models/ChampionSkin.php:66-69`
+
+**Parameters**:
+- `$uncentered` (bool): Whether to return uncentered splash art
+
+**Returns**: `string` - Image URL
+
+```php
+$skin->skin_image; // Centered splash
+$skin->getSkinImageAttribute(true); // Uncentered splash
+```
+
+### getSkinImageLoadingAttribute()
+
+Returns the skin's loading screen portrait image URL from Community Dragon.
+
+**Source**: `source/app/Models/ChampionSkin.php:71-74`
+
+**Returns**: `string` - Loading screen image URL
+
+```php
+$skin->skin_image_loading;
+// Returns: https://cdn.communitydragon.org/latest/champion/{champion_id}/portrait/skin/{skin_id}
+```
+
+### getSkinImageTileAttribute()
+
+Returns the skin's tile image URL from Community Dragon.
+
+**Source**: `source/app/Models/ChampionSkin.php:76-79`
+
+**Returns**: `string` - Tile image URL
+
+```php
+$skin->skin_image_tile;
+// Returns: https://cdn.communitydragon.org/latest/champion/{champion_id}/tile/skin/{skin_id}
+```
+
+### getRouteKeyName()
+
+Specifies that routes should use the `slug` field instead of `id`.
+
+**Source**: `source/app/Models/ChampionSkin.php:46-49`
+
+**Returns**: `string` - "slug"
+
+## Traits
+
+### HasFactory
+
+Enables model factory support for testing and seeding.
+
+**Source**: `source/app/Models/ChampionSkin.php:13`
+
+### Sluggable
+
+Automatically generates URL-friendly slugs from the skin name.
+
+**Source**: `source/app/Models/ChampionSkin.php:14, 37-44`
+
+**Configuration**:
+```php
+public function sluggable(): array
+{
+    return [
+        'slug' => [
+            'source' => 'skin_name',
+        ],
+    ];
+}
+```
+
+## Fillable Attributes
+
+The following attributes are mass-assignable:
+
+**Source**: `source/app/Models/ChampionSkin.php:16-35`
+
+- `champion_id`
+- `full_skin_id`
+- `skin_id`
+- `skin_name`
+- `lore`
+- `availability`
+- `loot_eligible`
+- `rp_price`
+- `rarity`
+- `release_date`
+- `associated_skinline`
+- `new_effects`
+- `new_animations`
+- `new_recall`
+- `new_voice`
+- `new_quotes`
+- `voice_actor`
+- `splash_artist`
+
+## Usage Example
+
+```php
+use App\Models\ChampionSkin;
+
+// Find skin by slug
+$skin = ChampionSkin::where('slug', 'kda-all-out-ahri')->first();
+
+// Access properties
+echo $skin->skin_name; // "K/DA ALL OUT Ahri"
+echo $skin->rp_price; // 1350
+echo $skin->rarity; // "Epic"
+echo $skin->availability; // "Available"
+
+// Check features
+if ($skin->new_effects) {
+    echo "This skin has new visual effects";
+}
+
+// Access relationships
+$champion = $skin->champion; // Parent champion
+$chromas = $skin->chromas; // Available chromas
+
+// Get images
+$splash = $skin->skin_image;
+$loading = $skin->skin_image_loading;
+$tile = $skin->skin_image_tile;
+
+// Access array fields
+$skinlines = $skin->associated_skinline; // ["K/DA", "ALL OUT"]
+$artists = $skin->splash_artist; // ["Artist Name"]
+```

@@ -1,0 +1,383 @@
+---
+title: SaleController
+description: Controller for displaying League of Legends champion and skin sales with live data from Boris API
+---
+
+The `SaleController` handles HTTP requests for the sale rotation page with feature toggle support and comprehensive error handling.
+
+## Overview
+
+Located at `source/app/Http/Controllers/SaleController.php`, this controller:
+
+- Fetches live sale data from Boris API
+- Implements feature toggle for maintenance mode
+- Caches results for 8 hours
+- Provides detailed error handling and logging
+- Returns structured champion and skin sale data
+- Gracefully handles API failures with user-friendly errors
+
+## Class Definition
+
+```php
+namespace App\Http\Controllers;
+
+use RuntimeException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class SaleController extends Controller
+{
+    public function index()
+    {
+        // Implementation
+    }
+}
+```
+
+## Route
+
+Defined in `source/routes/web.php:61`:
+
+```php
+Route::get('sale-rotation', static fn () => (new SaleController)->index())
+    ->name('sales.index');
+```
+
+## Method
+
+### index()
+
+Displays the current sale rotation for champions and skins.
+
+```php
+public function index()
+{
+    // Feature toggle check
+    if (!config('sales.enabled')) {
+        return view('sales.index');
+    }
+
+    try {
+        $sales = Cache::remember('sales_data', 60 * 60 * 8, function () {
+            // Fetch from Boris API
+            $borisUrl = rtrim((string) config('services.boris.url'), '/');
+            $borisApiKey = (string) config('services.boris.api_key');
+
+            $headers = ['X-API-Key' => $borisApiKey];
+
+            $championSalesResponse = Http::withHeaders($headers)->get($borisUrl.'/api/champions/sales');
+            $skinSalesResponse = Http::withHeaders($headers)->get($borisUrl.'/api/skins/sales');
+
+            // Validation and transformation
+            // ...
+        });
+    } catch (\Exception $exception) {
+        // Error handling
+        // ...
+    }
+
+    return view('sales.index', ['sales' => $sales]);
+}
+```
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `sales.index` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="sales" type="array" default="null">
+  Sale data array with `champion_sales` and `skin_sales` keys (null in maintenance mode)
+</ResponseField>
+
+## Feature Toggle
+
+The controller checks a configuration flag before attempting to fetch sales:
+
+```php
+if (!config('sales.enabled')) {
+    return view('sales.index');
+}
+```
+
+### Configuration
+
+<ParamField path="SALES_ENABLED" type="boolean" default="false">
+  Enable/disable the sale rotation feature in `.env`
+</ParamField>
+
+```bash
+# Enable or disable fetching live Sale Rotation data from the external API.
+# Set to true to enable fetching, false to show the maintenance message.
+SALES_ENABLED=false
+```
+
+<Warning>
+  When disabled, the view is rendered without sales data, allowing the template to display a maintenance message.
+</Warning>
+
+## API Integration
+
+The controller fetches data from two Boris API endpoints:
+
+### Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Champion Sales" icon="chess-knight">
+    `GET /api/champions/sales`
+    
+    Returns champions currently on sale
+  </Card>
+  <Card title="Skin Sales" icon="palette">
+    `GET /api/skins/sales`
+    
+    Returns skins currently on sale
+  </Card>
+</CardGroup>
+
+### Authentication
+
+```php
+$headers = [
+    'X-API-Key' => $borisApiKey,
+];
+
+$championSalesResponse = Http::withHeaders($headers)->get($borisUrl.'/api/champions/sales');
+```
+
+<Note>
+  Both endpoints require the `X-API-Key` header for authentication using `BORIS_API_KEY` from configuration.
+</Note>
+
+## Response Processing
+
+### Expected API Response Format
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "sale_rp": 487,
+      "percent_off": 35
+    },
+    {
+      "id": 53,
+      "sale_rp": 395,
+      "percent_off": 45
+    }
+  ]
+}
+```
+
+### Data Transformation
+
+The controller transforms the API response:
+
+```php
+return [
+    'champion_sales' => array_map(static fn (array $item): array => [
+        'item_id' => $item['id'],
+        'rp' => $item['sale_rp'],
+        'percent_off' => $item['percent_off'],
+    ], $championSales['items']),
+    'skin_sales' => array_map(static fn (array $item): array => [
+        'item_id' => $item['id'],
+        'rp' => $item['sale_rp'],
+        'percent_off' => $item['percent_off'],
+    ], $skinSales['items']),
+];
+```
+
+### Output Structure
+
+<Expandable title="champion_sales">
+  <ResponseField name="item_id" type="integer">
+    Champion ID from Riot API
+  </ResponseField>
+  <ResponseField name="rp" type="integer">
+    Discounted price in Riot Points
+  </ResponseField>
+  <ResponseField name="percent_off" type="integer">
+    Discount percentage (e.g., 35 for 35% off)
+  </ResponseField>
+</Expandable>
+
+<Expandable title="skin_sales">
+  <ResponseField name="item_id" type="integer">
+    Skin ID from Riot API
+  </ResponseField>
+  <ResponseField name="rp" type="integer">
+    Discounted price in Riot Points
+  </ResponseField>
+  <ResponseField name="percent_off" type="integer">
+    Discount percentage (e.g., 25 for 25% off)
+  </ResponseField>
+</Expandable>
+
+## Error Handling
+
+The controller implements multi-level error handling:
+
+### HTTP Status Validation
+
+```php
+if (! $championSalesResponse->successful() || ! $skinSalesResponse->successful()) {
+    Log::error('Boris sales request failed.', [
+        'champions_status' => $championSalesResponse->status(),
+        'skins_status' => $skinSalesResponse->status(),
+    ]);
+    
+    throw new RuntimeException('Boris sales request failed.');
+}
+```
+
+### Payload Structure Validation
+
+```php
+if (
+    ! isset($championSales['items']) || ! is_array($championSales['items']) ||
+    ! isset($skinSales['items']) || ! is_array($skinSales['items'])
+) {
+    Log::error('Boris sales payload is invalid.');
+    throw new RuntimeException('Boris sales payload is invalid.');
+}
+```
+
+### Exception Handling
+
+```php
+catch (\Exception $exception) {
+    if (
+        $exception->getMessage() === 'Boris sales request failed.' ||
+        $exception->getMessage() === 'Boris sales payload is invalid.'
+    ) {
+        abort(503, 'Sorry, the Sale Rotation is currently under maintenance. Please try again later.');
+    }
+
+    Log::error('An error occurred while trying to fetch the Sale Rotation', ['error' => $exception->getMessage()]);
+    abort(500, 'Sorry, an error occurred while trying to fetch the Sale Rotation. Please try again later.');
+}
+```
+
+### HTTP Error Codes
+
+<ResponseField name="503 Service Unavailable" type="HTTP Status">
+  Returned when Boris API request fails or returns invalid payload structure
+  
+  **Message:** "Sorry, the Sale Rotation is currently under maintenance. Please try again later."
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="HTTP Status">
+  Returned for unexpected exceptions
+  
+  **Message:** "Sorry, an error occurred while trying to fetch the Sale Rotation. Please try again later."
+</ResponseField>
+
+## Caching Strategy
+
+```php
+$sales = Cache::remember('sales_data', 60 * 60 * 8, function () {
+    // Fetch and process API data
+});
+```
+
+<Info>
+  Sales data is cached for **8 hours** (28,800 seconds) to balance data freshness with API rate limits.
+</Info>
+
+### Cache Key
+
+- **Key:** `sales_data`
+- **TTL:** 8 hours
+- **Scope:** Global (all users see the same cached data)
+
+### Manual Cache Invalidation
+
+To force a refresh:
+
+```php
+Cache::forget('sales_data');
+```
+
+## Logging
+
+All errors are logged with contextual information:
+
+### Request Failure Log
+
+```php
+Log::error('Boris sales request failed.', [
+    'champions_status' => $championSalesResponse->status(),
+    'skins_status' => $skinSalesResponse->status(),
+]);
+```
+
+### Payload Validation Failure Log
+
+```php
+Log::error('Boris sales payload is invalid.');
+```
+
+### Generic Error Log
+
+```php
+Log::error('An error occurred while trying to fetch the Sale Rotation', [
+    'error' => $exception->getMessage()
+]);
+```
+
+<Tip>
+  If Discord logging is configured (`LOG_DISCORD_WEBHOOK_URL`), these errors will also be sent to Discord.
+</Tip>
+
+## Configuration Requirements
+
+<ParamField path="BORIS_URL" type="string" required>
+  Base URL for the Boris API
+  
+  Example: `https://boris.heimerdinger.lol`
+</ParamField>
+
+<ParamField path="BORIS_API_KEY" type="string" required>
+  API key for authenticating with Boris API
+</ParamField>
+
+<ParamField path="SALES_ENABLED" type="boolean" default="false">
+  Feature toggle to enable/disable sale fetching
+</ParamField>
+
+## Usage Example
+
+Access the sale rotation page:
+
+```bash
+GET /sale-rotation
+```
+
+**Possible Outcomes:**
+
+1. **Success:** Sales data displayed (from cache or fresh API call)
+2. **Maintenance Mode:** Feature disabled message shown
+3. **503 Error:** Boris API unavailable or returned invalid data
+4. **500 Error:** Unexpected server error
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Sales Feature" icon="book" href="/features/sales">
+    Learn about the sale rotation feature
+  </Card>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Learn about the Boris API integration
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Set up Boris API credentials
+  </Card>
+  <Card title="Champion Controller" icon="code" href="/api/controllers/champion-controller">
+    View champion browsing controller
+  </Card>
+</CardGroup>

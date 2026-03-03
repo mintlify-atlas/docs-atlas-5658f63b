@@ -1,0 +1,375 @@
+---
+title: 'Champion'
+description: 'Champion model representing League of Legends champions with their core attributes, relationships, and methods'
+---
+
+The `Champion` model represents a League of Legends champion with all their core information including stats, pricing, roles, and relationships to skins and other related data.
+
+**Source**: `source/app/Models/Champion.php`
+
+## Properties
+
+### Database Columns
+
+<ParamField path="id" type="integer" required>
+  Auto-incrementing primary key
+</ParamField>
+
+<ParamField path="champion_id" type="integer" required>
+  Unique Riot Games champion identifier. This is used as the foreign key for relationships.
+  
+  **Database**: `integer`, unique index
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:14`
+</ParamField>
+
+<ParamField path="key" type="string" required>
+  Champion's internal key identifier (e.g., "Ahri", "MasterYi")
+  
+  **Database**: `string`, unique index
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:15`
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Champion's display name (e.g., "Ahri", "Master Yi")
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:16`
+</ParamField>
+
+<ParamField path="title" type="string" required>
+  Champion's title (e.g., "the Nine-Tailed Fox", "the Wuju Bladesman")
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:17`
+</ParamField>
+
+<ParamField path="lore" type="string" required>
+  Champion's complete backstory and lore text
+  
+  **Database**: `longText`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:18`
+</ParamField>
+
+<ParamField path="roles" type="array" required>
+  Array of champion roles (e.g., ["Assassin", "Mage"])
+  
+  **Database**: `json`
+  
+  **Casted to**: `array` - automatically serialized/deserialized
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:19`
+  
+  **Model**: `source/app/Models/Champion.php:141`
+</ParamField>
+
+<ParamField path="price_be" type="integer" required>
+  Champion price in Blue Essence
+  
+  **Database**: `integer`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:20`
+</ParamField>
+
+<ParamField path="price_rp" type="integer" required>
+  Champion price in Riot Points
+  
+  **Database**: `integer`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:21`
+</ParamField>
+
+<ParamField path="resource_type" type="string" required>
+  Champion's resource type (e.g., "MANA", "ENERGY", "NONE")
+  
+  **Database**: `string`
+  
+  **Accessor**: Returns human-readable format via `getResourceTypeAttribute()` mutator
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:22`
+  
+  **Model**: `source/app/Models/Champion.php:32-55`
+</ParamField>
+
+<ParamField path="attack_type" type="string" required>
+  Champion's attack type (e.g., "Melee", "Ranged")
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:23`
+</ParamField>
+
+<ParamField path="adaptive_type" type="string" required>
+  Champion's adaptive damage type (e.g., "PHYSICAL_DAMAGE", "MAGIC_DAMAGE", "ADAPTIVE_DAMAGE")
+  
+  **Database**: `string`
+  
+  **Accessor**: Returns human-readable format via `getAdaptiveTypeAttribute()` mutator
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:24`
+  
+  **Model**: `source/app/Models/Champion.php:57-66`
+</ParamField>
+
+<ParamField path="release_date" type="string" required>
+  Champion's release date
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:25`
+</ParamField>
+
+<ParamField path="release_patch" type="string" required>
+  Game patch version when the champion was released
+  
+  **Database**: `string`
+  
+  **Migration**: `source/database/migrations/2023_10_25_180120_create_champions_table.php:26`
+</ParamField>
+
+<ParamField path="slug" type="string">
+  URL-friendly slug generated from champion name (used for routing)
+  
+  **Database**: `string`, unique index, nullable
+  
+  **Auto-generated**: Uses `Sluggable` trait to generate from `name` field
+  
+  **Migration**: `source/database/migrations/2023_11_01_135724_add_slug_to_champions.php:12`
+  
+  **Model**: `source/app/Models/Champion.php:68-80`
+</ParamField>
+
+<ParamField path="created_at" type="timestamp">
+  Record creation timestamp
+</ParamField>
+
+<ParamField path="updated_at" type="timestamp">
+  Record last update timestamp
+</ParamField>
+
+## Relationships
+
+### skins()
+
+Returns all skins belonging to this champion.
+
+**Type**: `HasMany`
+
+**Related Model**: `ChampionSkin`
+
+**Foreign Key**: `champion_id`
+
+**Source**: `source/app/Models/Champion.php:82-85`
+
+```php
+$champion->skins; // Collection of ChampionSkin models
+```
+
+### lanes()
+
+Returns the lane/role statistics for this champion.
+
+**Type**: `HasOne`
+
+**Related Model**: `ChampionRoles`
+
+**Foreign Key**: `champion_id`
+
+**Source**: `source/app/Models/Champion.php:87-90`
+
+```php
+$champion->lanes; // ChampionRoles model
+```
+
+### streamers()
+
+Returns all streamers associated with this champion.
+
+**Type**: `HasMany`
+
+**Related Model**: `Streamer`
+
+**Foreign Key**: `champion_id`
+
+**Source**: `source/app/Models/Champion.php:92-95`
+
+```php
+$champion->streamers; // Collection of Streamer models
+```
+
+## Accessors & Methods
+
+### getResourceTypeAttribute($value)
+
+Mutator that converts database resource type codes to human-readable format.
+
+**Source**: `source/app/Models/Champion.php:32-55`
+
+**Returns**: `string`
+
+**Mapping**:
+- `BLOOD_WELL` → "Blood"
+- `MANA` → "Mana"
+- `ENERGY` → "Energy"
+- `NONE` → "None"
+- And more...
+
+```php
+$champion->resource_type; // Returns "Mana" instead of "MANA"
+```
+
+### getAdaptiveTypeAttribute($value)
+
+Mutator that converts database adaptive type codes to human-readable format.
+
+**Source**: `source/app/Models/Champion.php:57-66`
+
+**Returns**: `string`
+
+**Mapping**:
+- `ADAPTIVE_DAMAGE` → "Adaptive"
+- `MAGIC_DAMAGE` → "Magical"
+- `PHYSICAL_DAMAGE` → "Physical"
+
+```php
+$champion->adaptive_type; // Returns "Physical" instead of "PHYSICAL_DAMAGE"
+```
+
+### getChampionImageAttribute($uncentered = false)
+
+Returns the champion's main splash art image URL.
+
+**Source**: `source/app/Models/Champion.php:98-100`
+
+**Parameters**:
+- `$uncentered` (bool): Whether to return uncentered splash art
+
+**Returns**: `string` - Image URL
+
+```php
+$champion->champion_image; // Centered splash
+$champion->getChampionImageAttribute(true); // Uncentered splash
+```
+
+### getChampionImageTileAttribute()
+
+Returns the champion's tile image URL.
+
+**Source**: `source/app/Models/Champion.php:102-105`
+
+**Returns**: `string` - Tile image URL
+
+```php
+$champion->champion_image_tile;
+```
+
+### getChampionSquareImageAttribute()
+
+Returns the champion's square icon image URL from Community Dragon.
+
+**Source**: `source/app/Models/Champion.php:107-110`
+
+**Returns**: `string` - Square icon URL
+
+```php
+$champion->champion_square_image;
+// Returns: https://raw.communitydragon.org/pbe/plugins/rcp-be-lol-game-data/global/default/v1/champion-icons/{champion_id}.png
+```
+
+### Ability Icon Accessors
+
+Methods to retrieve ability icon URLs for each ability.
+
+**Source**: `source/app/Models/Champion.php:113-136`
+
+**Returns**: `string` - Ability icon URL from Community Dragon CDN
+
+```php
+$champion->champion_ability_icon_q; // Q ability icon
+$champion->champion_ability_icon_w; // W ability icon
+$champion->champion_ability_icon_e; // E ability icon
+$champion->champion_ability_icon_r; // R ability icon
+$champion->champion_ability_icon_p; // Passive icon
+```
+
+### getRouteKeyName()
+
+Specifies that routes should use the `slug` field instead of `id`.
+
+**Source**: `source/app/Models/Champion.php:77-80`
+
+**Returns**: `string` - "slug"
+
+## Traits
+
+### HasFactory
+
+Enables model factory support for testing and seeding.
+
+**Source**: `source/app/Models/Champion.php:13`
+
+### Sluggable
+
+Automatically generates URL-friendly slugs from the champion name.
+
+**Source**: `source/app/Models/Champion.php:14, 68-75`
+
+**Configuration**:
+```php
+public function sluggable(): array
+{
+    return [
+        'slug' => [
+            'source' => 'name',
+        ],
+    ];
+}
+```
+
+## Fillable Attributes
+
+The following attributes are mass-assignable:
+
+**Source**: `source/app/Models/Champion.php:16-30`
+
+- `champion_id`
+- `key`
+- `name`
+- `title`
+- `lore`
+- `roles`
+- `price_be`
+- `price_rp`
+- `resource_type`
+- `attack_type`
+- `adaptive_type`
+- `release_date`
+- `release_patch`
+
+## Usage Example
+
+```php
+use App\Models\Champion;
+
+// Find champion by slug
+$champion = Champion::where('slug', 'ahri')->first();
+
+// Access properties
+echo $champion->name; // "Ahri"
+echo $champion->title; // "the Nine-Tailed Fox"
+echo $champion->resource_type; // "Mana" (human-readable)
+echo $champion->price_be; // 4800
+
+// Access relationships
+$skins = $champion->skins; // All Ahri skins
+$roles = $champion->lanes; // Lane/role data
+
+// Get images
+$splashArt = $champion->champion_image;
+$icon = $champion->champion_square_image;
+$qAbility = $champion->champion_ability_icon_q;
+```

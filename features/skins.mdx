@@ -1,0 +1,263 @@
+---
+title: Skin catalog
+description: Browse and search League of Legends skins with filtering, rarity information, and chroma variants
+---
+
+The skin catalog feature provides a comprehensive, searchable database of all League of Legends champion skins with advanced filtering capabilities.
+
+## Overview
+
+Heimerdinger.lol's skin catalog allows users to:
+
+- Browse all available champion skins with pagination
+- Search skins by name with partial matching
+- Filter by rarity tier (Common, Epic, Legendary, Mythic, Ultimate, etc.)
+- View high-quality splash art and loading screen images
+- Explore chroma variants for each skin
+- See visual features (new animations, voice, textures, particles, recall, VFX, SFX)
+
+## Routes
+
+The skin feature uses two main routes defined in `routes/web.php:47-48`:
+
+```php
+Route::get('skins', static fn (Request $request) => (new ChampionSkinController)->index($request))->name('skins.index');
+Route::get('skin/{championSkin}', static fn (ChampionSkin $championSkin) => (new ChampionSkinController)->show($championSkin))->name('skins.show');
+```
+
+## Skin List Page
+
+The `ChampionSkinController::index()` method (source/app/Http/Controllers/ChampionSkinController.php:18-36) displays paginated skins with filtering:
+
+```php
+public function index(Request $request)
+{
+    $skins = QueryBuilder::for(ChampionSkin::class)
+        ->allowedFilters(AllowedFilter::partial('name', 'skin_name'), 'rarity')
+        ->paginate(16)
+        ->appends(request()->query());
+
+    $rarityColor = [
+        'Common' => 'text-stone-300',
+        'Epic' => 'text-blue-400',
+        'Legendary' => 'text-red-500',
+        'Rare' => 'text-pink-300',
+        'Mythic' => 'text-purple-500',
+        'Ultimate' => 'text-yellow-400',
+        'Transcendent' => 'text-violet-400',
+        'Exalted' => 'text-violet-300',
+    ];
+
+    return view('skins.index', ['skins' => $skins, 'rarityColor' => $rarityColor])
+        ->fragmentIf($request->hasHeader('HX-Request'), 'skin-list');
+}
+```
+
+### Advanced Filtering
+
+The skin catalog uses [Spatie Query Builder](https://github.com/spatie/laravel-query-builder) for powerful filtering:
+
+<CardGroup cols={2}>
+  <Card title="Name Search" icon="magnifying-glass">
+    Partial matching on skin names (e.g., `?filter[name]=star` finds "Star Guardian Ahri")
+  </Card>
+  <Card title="Rarity Filter" icon="gem">
+    Exact match on rarity tier (e.g., `?filter[rarity]=Legendary`)
+  </Card>
+  <Card title="Pagination" icon="table-list">
+    16 skins per page with query string preservation
+  </Card>
+  <Card title="HTMX Support" icon="bolt">
+    Fragment rendering for dynamic updates
+  </Card>
+</CardGroup>
+
+## Rarity Tiers
+
+Skins are categorized into 8 rarity tiers, each with a distinctive color:
+
+<Accordion title="Rarity Tier Colors">
+  | Rarity | Color | TailwindCSS Class |
+  |--------|-------|-------------------|
+  | Common | Stone | `text-stone-300` |
+  | Rare | Pink | `text-pink-300` |
+  | Epic | Blue | `text-blue-400` |
+  | Legendary | Red | `text-red-500` |
+  | Mythic | Purple | `text-purple-500` |
+  | Ultimate | Yellow | `text-yellow-400` |
+  | Transcendent | Violet | `text-violet-400` |
+  | Exalted | Light Violet | `text-violet-300` |
+</Accordion>
+
+## Skin Detail Page
+
+The `ChampionSkinController::show()` method (source/app/Http/Controllers/ChampionSkinController.php:58-67) displays individual skin details:
+
+```php
+public function show(ChampionSkin $championSkin)
+{
+    $skin = Cache::remember(
+        'championSkinShowCache'.$championSkin->slug,
+        60 * 60 * 48,  // 48 hours
+        static fn () => $championSkin->load('champion', 'chromas')
+    );
+
+    return view('skins.show', ['skin' => $skin]);
+}
+```
+
+### Eager Loading
+
+<Note>
+  Skin detail pages load the parent **champion** and all **chroma variants** to minimize database queries.
+</Note>
+
+### Cache Strategy
+
+<Info>
+  Skin detail pages are cached for **48 hours** with a unique cache key per skin slug.
+</Info>
+
+## Skin Model
+
+Skins are represented by the `ChampionSkin` model located at `source/app/Models/ChampionSkin.php`. The model includes:
+
+### Database Properties
+
+<ParamField path="id" type="integer">
+  Primary key
+</ParamField>
+
+<ParamField path="skin_id" type="integer">
+  Riot Games API skin ID
+</ParamField>
+
+<ParamField path="champion_id" type="integer">
+  Parent champion ID (foreign key)
+</ParamField>
+
+<ParamField path="skin_name" type="string">
+  Full skin name (e.g., "Star Guardian Ahri")
+</ParamField>
+
+<ParamField path="rarity" type="string">
+  Rarity tier (Common, Epic, Legendary, etc.)
+</ParamField>
+
+<ParamField path="price" type="integer">
+  RP (Riot Points) price
+</ParamField>
+
+<ParamField path="sale_price" type="integer" default="null">
+  Discounted price if on sale
+</ParamField>
+
+<ParamField path="is_legacy" type="boolean">
+  Whether the skin is legacy (limited availability)
+</ParamField>
+
+<ParamField path="loot_eligible" type="boolean">
+  Whether the skin can be obtained from loot boxes
+</ParamField>
+
+### Visual Features
+
+The skin model tracks which new visual elements each skin includes:
+
+- `new_animations` - Custom animations
+- `new_voice` - New voice lines
+- `new_textures` - Updated textures
+- `new_particles` - Particle effects
+- `new_recall` - Custom recall animation
+- `new_vfx` - Visual effects
+- `new_sfx` - Sound effects
+
+### Relationships
+
+```php
+// Belongs to a champion
+public function champion(): BelongsTo
+{
+    return $this->belongsTo(Champion::class, 'champion_id', 'champion_id');
+}
+
+// Has many chromas
+public function chromas(): HasMany
+{
+    return $this->hasMany(SkinChroma::class, 'skin_id', 'skin_id');
+}
+```
+
+## Skin Images
+
+The ChampionSkin model provides image accessors for different display contexts:
+
+<Tabs>
+  <Tab title="Splash Art">
+    ```php
+    $skin->skin_splash_centered
+    // High-resolution centered splash art
+    ```
+  </Tab>
+  <Tab title="Loading Screen">
+    ```php
+    $skin->skin_loading_screen_path
+    // In-game loading screen image
+    ```
+  </Tab>
+  <Tab title="Tile">
+    ```php
+    $skin->skin_tile_path
+    // Square tile for grid displays
+    ```
+  </Tab>
+  <Tab title="Uncentered Splash">
+    ```php
+    $skin->skin_splash_uncentered
+    // Full uncentered splash art
+    ```
+  </Tab>
+</Tabs>
+
+## Chromas
+
+Chromas are color variants of skins represented by the `SkinChroma` model. Each chroma has:
+
+- Unique chroma ID and name
+- Individual splash art and loading screen
+- Price in RP or Blue Essence
+- Association with parent skin
+
+<Tip>
+  Chromas are displayed on the skin detail page and loaded via the `chromas()` relationship.
+</Tip>
+
+## HTMX Integration
+
+The skin catalog supports HTMX for dynamic page updates:
+
+```php
+return view('skins.index', ['skins' => $skins, 'rarityColor' => $rarityColor])
+    ->fragmentIf($request->hasHeader('HX-Request'), 'skin-list');
+```
+
+<Info>
+  When an HTMX request is detected, only the `skin-list` fragment is returned for efficient partial page updates.
+</Info>
+
+## Related Features
+
+<CardGroup cols={2}>
+  <Card title="Champions" icon="chess-knight" href="/features/champions">
+    View champion details and abilities
+  </Card>
+  <Card title="Sales" icon="tags" href="/features/sales">
+    Check current champion and skin sales
+  </Card>
+  <Card title="Skin Model" icon="code" href="/api/models/skin">
+    View the full ChampionSkin model API reference
+  </Card>
+  <Card title="Controller API" icon="server" href="/api/controllers/skin-controller">
+    See the ChampionSkinController documentation
+  </Card>
+</CardGroup>

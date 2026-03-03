@@ -1,0 +1,375 @@
+---
+title: ChampionSkinController
+description: Controller for browsing and filtering champion skins with search, rarity filtering, and HTMX support
+---
+
+The `ChampionSkinController` handles HTTP requests for the skin catalog with advanced filtering and pagination.
+
+## Overview
+
+Located at `source/app/Http/Controllers/ChampionSkinController.php`, this controller:
+
+- Displays paginated skin catalog (16 skins per page)
+- Implements search by skin name
+- Filters by rarity tier
+- Supports HTMX for dynamic updates
+- Shows individual skin details with chromas
+- Uses 48-hour caching on detail pages
+
+## Class Definition
+
+```php
+namespace App\Http\Controllers;
+
+use App\Http\Requests\StoreChampionSkinRequest;
+use App\Http\Requests\UpdateChampionSkinRequest;
+use App\Models\ChampionSkin;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Spatie\QueryBuilder\AllowedFilter;
+use Spatie\QueryBuilder\QueryBuilder;
+
+class ChampionSkinController extends Controller
+{
+    // Controller methods
+}
+```
+
+## Routes
+
+Defined in `source/routes/web.php:47-48`:
+
+```php
+Route::get('skins', static fn (Request $request) => (new ChampionSkinController)->index($request))
+    ->name('skins.index');
+    
+Route::get('skin/{championSkin}', static fn (ChampionSkin $championSkin) => (new ChampionSkinController)->show($championSkin))
+    ->name('skins.show');
+```
+
+## Methods
+
+### index()
+
+Displays a filterable, paginated listing of skins.
+
+```php
+public function index(Request $request)
+{
+    $skins = QueryBuilder::for(ChampionSkin::class)
+        ->allowedFilters(AllowedFilter::partial('name', 'skin_name'), 'rarity')
+        ->paginate(16)
+        ->appends(request()->query());
+
+    $rarityColor = [
+        'Common' => 'text-stone-300',
+        'Epic' => 'text-blue-400',
+        'Legendary' => 'text-red-500',
+        'Rare' => 'text-pink-300',
+        'Mythic' => 'text-purple-500',
+        'Ultimate' => 'text-yellow-400',
+        'Transcendent' => 'text-violet-400',
+        'Exalted' => 'text-violet-300',
+    ];
+
+    return view('skins.index', ['skins' => $skins, 'rarityColor' => $rarityColor])
+        ->fragmentIf($request->hasHeader('HX-Request'), 'skin-list');
+}
+```
+
+#### Parameters
+
+<ParamField path="request" type="Illuminate\Http\Request" required>
+  HTTP request object containing query parameters and headers
+</ParamField>
+
+#### Query Parameters
+
+<ParamField query="filter[name]" type="string">
+  Partial match search on `skin_name` column
+  
+  Example: `?filter[name]=star` matches "Star Guardian Ahri"
+</ParamField>
+
+<ParamField query="filter[rarity]" type="string">
+  Exact match on `rarity` column
+  
+  Valid values: `Common`, `Rare`, `Epic`, `Legendary`, `Mythic`, `Ultimate`, `Transcendent`, `Exalted`
+  
+  Example: `?filter[rarity]=Legendary`
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination (16 skins per page)
+  
+  Example: `?page=2`
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `skins.index` Blade template (or `skin-list` fragment for HTMX requests)
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="skins" type="LengthAwarePaginator<ChampionSkin>">
+  Paginated collection of skins (16 per page) with query string preservation
+</ResponseField>
+
+<ResponseField name="rarityColor" type="array">
+  Mapping of rarity tiers to TailwindCSS color classes
+</ResponseField>
+
+#### Rarity Color Mapping
+
+```php
+[
+    'Common' => 'text-stone-300',
+    'Epic' => 'text-blue-400',
+    'Legendary' => 'text-red-500',
+    'Rare' => 'text-pink-300',
+    'Mythic' => 'text-purple-500',
+    'Ultimate' => 'text-yellow-400',
+    'Transcendent' => 'text-violet-400',
+    'Exalted' => 'text-violet-300',
+]
+```
+
+#### HTMX Support
+
+```php
+->fragmentIf($request->hasHeader('HX-Request'), 'skin-list')
+```
+
+<Info>
+  When the request contains the `HX-Request` header (indicating an HTMX request), only the `skin-list` Blade fragment is rendered instead of the full page.
+</Info>
+
+**Benefits:**
+- Faster partial page updates
+- Reduced bandwidth usage
+- Smoother user experience for filtering/pagination
+
+#### Usage Examples
+
+<CodeGroup>
+
+```bash Browse All Skins
+GET /skins
+```
+
+```bash Search by Name
+GET /skins?filter[name]=project
+# Matches: "PROJECT: Ashe", "PROJECT: Vayne", etc.
+```
+
+```bash Filter by Rarity
+GET /skins?filter[rarity]=Ultimate
+# Shows only Ultimate rarity skins
+```
+
+```bash Combined Filters
+GET /skins?filter[name]=star&filter[rarity]=Epic&page=2
+# Epic rarity skins with "star" in name, page 2
+```
+
+</CodeGroup>
+
+### show()
+
+Displays a specific skin's detail page with chromas.
+
+```php
+public function show(ChampionSkin $championSkin)
+{
+    $skin = Cache::remember(
+        'championSkinShowCache'.$championSkin->slug,
+        60 * 60 * 48,  // 48 hours
+        static fn () => $championSkin->load('champion', 'chromas')
+    );
+
+    return view('skins.show', ['skin' => $skin]);
+}
+```
+
+#### Parameters
+
+<ParamField path="championSkin" type="ChampionSkin" required>
+  ChampionSkin model instance (automatically resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `skins.show` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="skin" type="ChampionSkin">
+  Skin model with eager-loaded relationships:
+  - `champion` - Parent champion
+  - `chromas` - All chroma variants for this skin
+</ResponseField>
+
+#### Cache Strategy
+
+<Note>
+  Each skin page is cached for **48 hours** with a unique cache key based on the skin's slug.
+</Note>
+
+Cache key format: `championSkinShowCache{slug}`
+
+Examples:
+- `championSkinShowCasestar-guardian-ahri`
+- `championSkinShowCaseproject-vayne`
+- `championSkinShowCasespirit-blossom-yasuo`
+
+#### Eager Loading
+
+```php
+$championSkin->load('champion', 'chromas')
+```
+
+<Accordion title="champion">
+  **Type:** `BelongsTo`
+  
+  The parent champion for this skin
+  
+  ```php
+  public function champion(): BelongsTo
+  {
+      return $this->belongsTo(Champion::class, 'champion_id', 'champion_id');
+  }
+  ```
+</Accordion>
+
+<Accordion title="chromas">
+  **Type:** `HasMany`
+  
+  All chroma color variants for this skin
+  
+  ```php
+  public function chromas(): HasMany
+  {
+      return $this->hasMany(SkinChroma::class, 'skin_id', 'skin_id');
+  }
+  ```
+</Accordion>
+
+#### Usage Example
+
+```bash
+GET /skin/star-guardian-ahri
+GET /skin/project-vayne
+GET /skin/elementalist-lux
+```
+
+## Spatie Query Builder
+
+This controller uses [Spatie Query Builder](https://github.com/spatie/laravel-query-builder) for filtering:
+
+```php
+QueryBuilder::for(ChampionSkin::class)
+    ->allowedFilters(
+        AllowedFilter::partial('name', 'skin_name'), 
+        'rarity'
+    )
+    ->paginate(16)
+    ->appends(request()->query());
+```
+
+### Allowed Filters
+
+<Accordion title="name (partial match)">
+  **Column:** `skin_name`
+  
+  **Type:** Partial match (LIKE query)
+  
+  **Example:** `?filter[name]=dragon` matches:
+  - "Dragon Trainer Tristana"
+  - "Dragonslayer Vayne"
+  - "Dragon Fist Lee Sin"
+</Accordion>
+
+<Accordion title="rarity (exact match)">
+  **Column:** `rarity`
+  
+  **Type:** Exact match
+  
+  **Example:** `?filter[rarity]=Mythic` matches only Mythic rarity skins
+</Accordion>
+
+### Query String Preservation
+
+```php
+->appends(request()->query())
+```
+
+<Info>
+  This ensures pagination links preserve filter parameters. Clicking "Next Page" maintains your search/filter state.
+</Info>
+
+## Pagination
+
+<ParamField path="perPage" type="integer" default="16">
+  Number of skins displayed per page
+</ParamField>
+
+**Pagination URLs:**
+```
+/skins?page=1
+/skins?page=2&filter[rarity]=Legendary
+/skins?page=3&filter[name]=star
+```
+
+## CRUD Methods (Unused)
+
+The controller includes standard CRUD method stubs but they're not implemented:
+
+```php
+public function create() { }
+public function store(StoreChampionSkinRequest $request) { }
+public function edit(ChampionSkin $championSkin) { }
+public function update(UpdateChampionSkinRequest $request, ChampionSkin $championSkin) { }
+public function destroy(ChampionSkin $championSkin) { }
+```
+
+<Note>
+  Skin data is managed through Artisan commands and data imports, not through web CRUD interfaces.
+</Note>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Indexed Queries" icon="database">
+    Ensure `skin_name` and `rarity` columns are indexed for fast filtering
+  </Card>
+  <Card title="48-Hour Cache" icon="clock">
+    Individual skin pages cached for 2 days
+  </Card>
+  <Card title="Pagination" icon="table-list">
+    Limits query size to 16 rows per request
+  </Card>
+  <Card title="Fragment Rendering" icon="bolt">
+    HTMX requests return only the updated fragment
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Skin Model" icon="code" href="/api/models/skin">
+    View the ChampionSkin model API reference
+  </Card>
+  <Card title="Skin Feature" icon="book" href="/features/skins">
+    Learn about the skin catalog feature
+  </Card>
+  <Card title="Champion Model" icon="code" href="/api/models/champion">
+    View the parent Champion model
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/development/architecture">
+    Understand the MVC architecture
+  </Card>
+</CardGroup>

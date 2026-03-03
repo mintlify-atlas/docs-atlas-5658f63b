@@ -1,0 +1,382 @@
+---
+title: BorisStaticDataClient
+description: Service for fetching League of Legends static data with automatic fallback from Boris API to Meraki Analytics
+---
+
+The `BorisStaticDataClient` service provides a resilient data fetching layer with automatic fallback between primary and secondary data sources.
+
+## Overview
+
+Located at `source/app/Services/BorisStaticDataClient.php`, this service:
+
+- Fetches champion and champion rate data
+- Implements primary/fallback architecture (Boris → Meraki)
+- Validates payload structure before returning data
+- Provides comprehensive error logging
+- Normalizes data formats between sources
+
+## Class Definition
+
+```php
+namespace App\Services;
+
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use RuntimeException;
+use Throwable;
+
+class BorisStaticDataClient
+{
+    // Service implementation
+}
+```
+
+## Constants
+
+<ParamField path="CHAMPIONS_ENDPOINT" type="string" default="/lolstaticdata/champions.json">
+  Boris API endpoint for champion data
+</ParamField>
+
+<ParamField path="CHAMPION_RATES_ENDPOINT" type="string" default="/lolstaticdata/championrates.json">
+  Boris API endpoint for champion rate data
+</ParamField>
+
+<ParamField path="MERAKI_CHAMPIONS_URL" type="string" default="https://cdn.merakianalytics.com/riot/lol/resources/latest/en-US/champions.json">
+  Meraki Analytics fallback URL for champion data
+</ParamField>
+
+<ParamField path="MERAKI_CHAMPION_RATES_URL" type="string" default="https://cdn.merakianalytics.com/riot/lol/resources/latest/en-US/championrates.json">
+  Meraki Analytics fallback URL for champion rates
+</ParamField>
+
+## Public Methods
+
+### getChampions()
+
+Fetches champion data with automatic fallback.
+
+```php
+public function getChampions(): array
+{
+    $payload = $this->fetchWithFallback(
+        self::CHAMPIONS_ENDPOINT,
+        self::MERAKI_CHAMPIONS_URL,
+        fn (mixed $payload): bool => $this->isChampionPayload($payload)
+    );
+
+    return $this->normalizeChampionPayload($payload);
+}
+```
+
+**Returns:** `array` - Normalized champion data
+
+**Throws:** `RuntimeException` - When both Boris and Meraki fail or return invalid data
+
+#### Usage Example
+
+```php
+use App\Services\BorisStaticDataClient;
+
+$client = new BorisStaticDataClient();
+$champions = $client->getChampions();
+
+// Returns array of champions
+// [
+//   ['id' => 1, 'name' => 'Annie', ...],
+//   ['id' => 2, 'name' => 'Olaf', ...],
+// ]
+```
+
+### getChampionRates()
+
+Fetches champion rate/popularity data with automatic fallback.
+
+```php
+public function getChampionRates(): array
+{
+    return $this->fetchWithFallback(
+        self::CHAMPION_RATES_ENDPOINT,
+        self::MERAKI_CHAMPION_RATES_URL,
+        fn (mixed $payload): bool => $this->isChampionRatesPayload($payload)
+    );
+}
+```
+
+**Returns:** `array` - Champion rate data with `data` key
+
+**Throws:** `RuntimeException` - When both Boris and Meraki fail or return invalid data
+
+## Private Methods
+
+### fetchWithFallback()
+
+Core method implementing the fallback pattern.
+
+```php
+private function fetchWithFallback(
+    string $borisEndpoint, 
+    string $merakiUrl, 
+    callable $validator
+): array
+```
+
+<ParamField path="borisEndpoint" type="string" required>
+  Boris API endpoint path (e.g., `/lolstaticdata/champions.json`)
+</ParamField>
+
+<ParamField path="merakiUrl" type="string" required>
+  Full Meraki Analytics URL for fallback
+</ParamField>
+
+<ParamField path="validator" type="callable" required>
+  Callback to validate payload structure returns `bool`
+</ParamField>
+
+**Flow:**
+
+<Steps>
+  <Step title="Attempt Boris API">
+    Tries to fetch from Boris API with authentication
+  </Step>
+  
+  <Step title="Validate Boris Response">
+    If successful, validates payload structure using provided validator
+  </Step>
+  
+  <Step title="Fallback to Meraki">
+    If Boris fails or returns invalid data, attempts Meraki Analytics
+  </Step>
+  
+  <Step title="Validate Meraki Response">
+    Validates Meraki payload structure
+  </Step>
+  
+  <Step title="Throw Exception">
+    If both sources fail, throws RuntimeException
+  </Step>
+</Steps>
+
+### fetchFromBoris()
+
+Fetches data from the Boris API with authentication.
+
+```php
+private function fetchFromBoris(string $endpoint): mixed
+{
+    $response = Http::withHeaders([
+        'X-API-Key' => (string) config('services.boris.api_key'),
+    ])->get($this->borisUrl() . $endpoint);
+
+    return $this->decodeResponse($response, $endpoint, 'boris');
+}
+```
+
+<Note>
+  Requires `BORIS_URL` and `BORIS_API_KEY` environment variables to be configured.
+</Note>
+
+### fetchFromMeraki()
+
+Fetches data from Meraki Analytics (no authentication required).
+
+```php
+private function fetchFromMeraki(string $url): mixed
+{
+    $response = Http::get($url);
+    return $this->decodeResponse($response, $url, 'meraki');
+}
+```
+
+### decodeResponse()
+
+Decodes and validates HTTP responses.
+
+```php
+private function decodeResponse(
+    Response $response, 
+    string $endpoint, 
+    string $source
+): mixed
+```
+
+**Validation:**
+
+1. Checks HTTP status is successful (2xx)
+2. Decodes JSON response
+3. Verifies JSON is valid (not null)
+
+**Throws:** `RuntimeException` for HTTP errors or invalid JSON
+
+### Payload Validators
+
+#### isChampionPayload()
+
+Validates champion data structure.
+
+```php
+private function isChampionPayload(mixed $payload): bool
+{
+    if (! is_array($payload) || $payload === []) {
+        return false;
+    }
+
+    if (array_is_list($payload)) {
+        return isset($payload[0]['id']);
+    }
+
+    $firstChampion = reset($payload);
+    return is_array($firstChampion) && isset($firstChampion['id']);
+}
+```
+
+**Accepts:**
+- Numeric array with `id` key in first element
+- Associative array with champion objects containing `id` key
+
+#### isChampionRatesPayload()
+
+Validates champion rates data structure.
+
+```php
+private function isChampionRatesPayload(mixed $payload): bool
+{
+    return is_array($payload) && isset($payload['data']) && is_array($payload['data']);
+}
+```
+
+**Requires:** Top-level `data` key containing an array
+
+### normalizeChampionPayload()
+
+Normalizes champion data to consistent format.
+
+```php
+private function normalizeChampionPayload(array $payload): array
+{
+    if (array_is_list($payload)) {
+        return $payload;
+    }
+
+    return array_values($payload);
+}
+```
+
+**Converts:** Associative arrays to numeric arrays
+
+## Error Handling
+
+The service implements comprehensive error handling with logging:
+
+### Warning Logs
+
+```php
+Log::warning('Boris static data request failed.', [
+    'source' => 'boris',
+    'endpoint' => $borisEndpoint,
+    'status' => $exception->getCode() ?: null,
+    'message' => $exception->getMessage(),
+]);
+```
+
+### Error Logs
+
+```php
+Log::error('Boris and Meraki returned invalid static data payloads.', [
+    'source' => 'meraki',
+    'endpoint' => $merakiUrl,
+    'status' => null,
+    'message' => 'Payload shape validation failed for both sources.',
+]);
+```
+
+<Info>
+  All logs include contextual information (source, endpoint, status, message) for debugging.
+</Info>
+
+## Configuration
+
+Required environment variables:
+
+```bash
+# Boris API Configuration
+BORIS_URL=https://boris.heimerdinger.lol
+BORIS_API_KEY=your_api_key_here
+```
+
+Configuration file: `source/config/services.php`
+
+```php
+'boris' => [
+    'url' => env('BORIS_URL'),
+    'api_key' => env('BORIS_API_KEY'),
+],
+```
+
+## Usage in Commands
+
+The service is typically used in Artisan commands for data seeding:
+
+```php
+use App\Services\BorisStaticDataClient;
+
+$client = app(BorisStaticDataClient::class);
+
+try {
+    $champions = $client->getChampions();
+    $rates = $client->getChampionRates();
+    
+    // Process and store data
+} catch (RuntimeException $e) {
+    $this->error('Failed to fetch champion data: ' . $e->getMessage());
+}
+```
+
+## Best Practices
+
+<Accordion title="Caching">
+  While the service doesn't cache internally, callers should cache results to minimize API calls:
+  
+  ```php
+  $champions = Cache::remember('boris_champions', 3600, function () use ($client) {
+      return $client->getChampions();
+  });
+  ```
+</Accordion>
+
+<Accordion title="Error Handling">
+  Always wrap calls in try-catch blocks:
+  
+  ```php
+  try {
+      $data = $client->getChampions();
+  } catch (RuntimeException $e) {
+      Log::error('Champion fetch failed', ['error' => $e->getMessage()]);
+      // Handle gracefully
+  }
+  ```
+</Accordion>
+
+<Accordion title="Monitoring">
+  Monitor logs for frequent fallbacks to Meraki, which may indicate Boris API issues:
+  
+  - Warning: `Falling back to Meraki static data`
+  - Error: `Boris and Meraki returned invalid static data payloads`
+</Accordion>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="Data Sources" icon="database" href="/development/data-sources">
+    Learn about the Boris and Meraki APIs
+  </Card>
+  <Card title="Champion Model" icon="code" href="/api/models/champion">
+    View the Champion model structure
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Set up Boris API credentials
+  </Card>
+  <Card title="Commands" icon="terminal" href="/development/commands">
+    See commands that use this service
+  </Card>
+</CardGroup>
