@@ -75,7 +75,9 @@
             "pages": [
               "api/controllers/champion-controller",
               "api/controllers/skin-controller",
-              "api/controllers/sale-controller"
+              "api/controllers/sale-controller",
+              "api/controllers/summoner-icon-controller",
+              "api/controllers/summoner-emote-controller"
             ]
           }
         ]

@@ -1,0 +1,389 @@
+---
+title: SummonerEmoteController
+description: Controller for browsing and managing summoner emotes with filtering, pagination, and CRUD operations
+---
+
+The `SummonerEmoteController` handles HTTP requests for the summoner emote catalog with search, filtering, and administrative CRUD operations.
+
+## Overview
+
+Located at `source/app/Http/Controllers/SummonerEmoteController.php`, this controller:
+
+- Displays paginated emote catalog (72 emotes per page)
+- Filters by title
+- Sorts by emote ID (newest first)
+- Implements 1-hour caching with query-specific cache keys
+- Provides full CRUD operations with authorization
+- Returns JSON responses for API operations
+
+## Class Definition
+
+```php
+namespace App\Http\Controllers;
+
+use App\Models\SummonerEmote;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Spatie\QueryBuilder\QueryBuilder;
+
+class SummonerEmoteController extends Controller
+{
+    // Controller methods
+}
+```
+
+## Routes
+
+Defined in `source/routes/web.php:55`:
+
+```php
+Route::get('emotes', static fn () => (new SummonerEmoteController)->index())
+    ->name('assets.emotes.index');
+```
+
+## Methods
+
+### index()
+
+Displays a filterable, paginated listing of summoner emotes.
+
+```php
+public function index()
+{
+    $cacheKey = 'emotes_' . md5(serialize(request()->query()));
+
+    $emotes = Cache::remember($cacheKey, 60 * 60, function () {
+        return QueryBuilder::for(SummonerEmote::class)
+            ->allowedFilters('title')
+            ->defaultSort('-emote_id')
+            ->paginate(72)
+            ->appends(request()->query());
+    });
+
+    return view('emotes.index', ['emotes' => $emotes]);
+}
+```
+
+#### Query Parameters
+
+<ParamField query="filter[title]" type="string">
+  Filter by emote title (exact match)
+  
+  Example: `?filter[title]=Happy`
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination (72 emotes per page)
+  
+  Example: `?page=2`
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `emotes.index` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="emotes" type="LengthAwarePaginator<SummonerEmote>">
+  Paginated collection of summoner emotes (72 per page)
+</ResponseField>
+
+#### Cache Strategy
+
+<Info>
+  Emotes are cached for **1 hour** with a unique cache key per query combination using MD5 hash of serialized query parameters.
+</Info>
+
+**Cache Key Format:** `emotes_{md5_hash_of_query}`
+
+Examples:
+- `emotes_d41d8cd98f00b204e9800998ecf8427e` (no filters)
+- `emotes_b2e4a8f9c1d6e5f4a3b2c1d0e9f8a7b6` (with filters)
+
+#### Default Sorting
+
+```php
+->defaultSort('-emote_id')
+```
+
+<Note>
+  Emotes are sorted by `emote_id` in **descending order** (newest emotes first). The `-` prefix indicates descending sort.
+</Note>
+
+#### Usage Examples
+
+<CodeGroup>
+
+```bash Browse All Emotes
+GET /emotes
+```
+
+```bash Filter by Title
+GET /emotes?filter[title]=Thumbs Up
+# Shows emotes matching "Thumbs Up" title
+```
+
+```bash Paginated Results
+GET /emotes?page=2
+# Second page of emotes
+```
+
+</CodeGroup>
+
+### show()
+
+Returns a specific emote (JSON response).
+
+```php
+public function show(SummonerEmote $summonerEmote)
+{
+    return $summonerEmote;
+}
+```
+
+#### Parameters
+
+<ParamField path="summonerEmote" type="SummonerEmote" required>
+  SummonerEmote model instance (automatically resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="emote" type="SummonerEmote">
+  Individual summoner emote model as JSON
+</ResponseField>
+
+<Note>
+  This method returns JSON directly, not a view. Useful for API endpoints.
+</Note>
+
+### store()
+
+Creates a new summoner emote (requires authorization).
+
+```php
+public function store(Request $request)
+{
+    $this->authorize('create', SummonerEmote::class);
+
+    $request->validate([
+        'emote_id' => ['required', 'integer'],
+        'title' => ['required'],
+        'image' => ['required'],
+    ]);
+
+    return SummonerEmote::create($request->validated());
+}
+```
+
+#### Authorization
+
+<Warning>
+  This method requires the user to be authorized to create SummonerEmote records. Unauthorized requests will receive a **403 Forbidden** response.
+</Warning>
+
+#### Validation Rules
+
+<ParamField body="emote_id" type="integer" required>
+  Riot Games API emote ID
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Emote display title/name
+</ParamField>
+
+<ParamField body="image" type="string" required>
+  CDN URL for the emote image
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="emote" type="SummonerEmote">
+  Newly created SummonerEmote model instance (JSON)
+</ResponseField>
+
+### update()
+
+Updates an existing summoner emote (requires authorization).
+
+```php
+public function update(Request $request, SummonerEmote $summonerEmote)
+{
+    $this->authorize('update', $summonerEmote);
+
+    $request->validate([
+        'emote_id' => ['required', 'integer'],
+        'title' => ['required'],
+        'image' => ['required'],
+    ]);
+
+    $summonerEmote->update($request->validated());
+
+    return $summonerEmote;
+}
+```
+
+#### Authorization
+
+<Warning>
+  This method requires the user to be authorized to update the specific SummonerEmote. Unauthorized requests will receive a **403 Forbidden** response.
+</Warning>
+
+#### Parameters
+
+<ParamField path="summonerEmote" type="SummonerEmote" required>
+  Emote to update (resolved via route model binding)
+</ParamField>
+
+#### Validation Rules
+
+<ParamField body="emote_id" type="integer" required>
+  Riot Games API emote ID
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Emote display title/name
+</ParamField>
+
+<ParamField body="image" type="string" required>
+  CDN URL for the emote image
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="emote" type="SummonerEmote">
+  Updated SummonerEmote model instance (JSON)
+</ResponseField>
+
+### destroy()
+
+Deletes a summoner emote (requires authorization).
+
+```php
+public function destroy(SummonerEmote $summonerEmote)
+{
+    $this->authorize('delete', $summonerEmote);
+
+    $summonerEmote->delete();
+
+    return response()->json();
+}
+```
+
+#### Authorization
+
+<Warning>
+  This method requires the user to be authorized to delete the specific SummonerEmote. Unauthorized requests will receive a **403 Forbidden** response.
+</Warning>
+
+#### Parameters
+
+<ParamField path="summonerEmote" type="SummonerEmote" required>
+  Emote to delete (resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="response" type="JsonResponse">
+  Empty JSON response with 200 status code
+</ResponseField>
+
+## Authorization
+
+Unlike the SummonerIconController, this controller implements Laravel's authorization policies:
+
+```php
+$this->authorize('create', SummonerEmote::class);
+$this->authorize('update', $summonerEmote);
+$this->authorize('delete', $summonerEmote);
+```
+
+<Info>
+  Authorization policies should be defined in `app/Policies/SummonerEmotePolicy.php` to control who can create, update, and delete emotes.
+</Info>
+
+## Spatie Query Builder
+
+This controller uses [Spatie Query Builder](https://github.com/spatie/laravel-query-builder) for filtering:
+
+```php
+QueryBuilder::for(SummonerEmote::class)
+    ->allowedFilters('title')
+    ->defaultSort('-emote_id')
+    ->paginate(72)
+```
+
+### Allowed Filters
+
+<Accordion title="title (exact match)">
+  **Column:** `title`
+  
+  **Type:** Exact match
+  
+  **Example:** `?filter[title]=Happy Face` matches emotes with exactly "Happy Face" as the title
+</Accordion>
+
+## Pagination
+
+<ParamField path="perPage" type="integer" default="72">
+  Number of emotes displayed per page
+</ParamField>
+
+**Pagination URLs:**
+```
+/emotes?page=1
+/emotes?page=2&filter[title]=Dance
+```
+
+## Differences from SummonerIconController
+
+<CardGroup cols={2}>
+  <Card title="Authorization" icon="lock">
+    Emote controller has authorization checks on CRUD operations
+  </Card>
+  <Card title="Fewer Filters" icon="filter">
+    Only title filtering (no esports or year filters)
+  </Card>
+  <Card title="JSON Responses" icon="code">
+    show() returns JSON instead of a view
+  </Card>
+  <Card title="Simpler Data" icon="database">
+    Emotes have simpler schema than icons
+  </Card>
+</CardGroup>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Query-Specific Caching" icon="key">
+    Each unique query combination gets its own cache key
+  </Card>
+  <Card title="1-Hour Cache" icon="clock">
+    Emotes cached for 1 hour per query
+  </Card>
+  <Card title="Large Pages" icon="table-list">
+    72 emotes per page reduces number of requests
+  </Card>
+  <Card title="Indexed Queries" icon="database">
+    Ensure title column is indexed for fast filtering
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="SummonerEmote Model" icon="code" href="/api/models/summoner-emote">
+    View the SummonerEmote model API reference
+  </Card>
+  <Card title="Assets Feature" icon="book" href="/features/assets">
+    Learn about the game assets browsing feature
+  </Card>
+  <Card title="Icon Controller" icon="server" href="/api/controllers/summoner-icon-controller">
+    View the icon controller documentation
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/development/architecture">
+    Understand the MVC architecture
+  </Card>
+</CardGroup>

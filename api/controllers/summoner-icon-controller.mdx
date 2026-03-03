@@ -1,0 +1,402 @@
+---
+title: SummonerIconController
+description: Controller for browsing and managing summoner icons with filtering, pagination, and CRUD operations
+---
+
+The `SummonerIconController` handles HTTP requests for the summoner icon catalog with search, filtering, and administrative CRUD operations.
+
+## Overview
+
+Located at `source/app/Http/Controllers/SummonerIconController.php`, this controller:
+
+- Displays paginated icon catalog (72 icons per page)
+- Filters by title, esports team, and release year
+- Sorts by icon ID (newest first)
+- Implements 1-hour caching with query-specific cache keys
+- Provides full CRUD operations for icon management
+- Shows individual icon detail pages
+
+## Class Definition
+
+```php
+namespace App\Http\Controllers;
+
+use App\Models\SummonerIcon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Spatie\QueryBuilder\QueryBuilder;
+
+class SummonerIconController extends Controller
+{
+    // Controller methods
+}
+```
+
+## Routes
+
+Defined in `source/routes/web.php:51-52`:
+
+```php
+Route::get('icons', static fn () => (new SummonerIconController)->index())
+    ->name('assets.icons.index');
+    
+Route::get('icon/{summonerIcon}', static fn (SummonerIcon $summonerIcon) => (new SummonerIconController)->show($summonerIcon))
+    ->name('assets.icons.show');
+```
+
+## Methods
+
+### index()
+
+Displays a filterable, paginated listing of summoner icons.
+
+```php
+public function index()
+{
+    $cacheKey = 'icons_' . md5(serialize(request()->query()));
+
+    $icons = Cache::remember($cacheKey, 60 * 60, function () {
+        return QueryBuilder::for(SummonerIcon::class)
+            ->allowedFilters(['title', 'esports_team', 'release_year'])
+            ->defaultSort('-icon_id')
+            ->paginate(72)
+            ->appends(request()->query());
+    });
+
+    return view('icons.index', ['icons' => $icons]);
+}
+```
+
+#### Query Parameters
+
+<ParamField query="filter[title]" type="string">
+  Filter by icon title (exact match)
+  
+  Example: `?filter[title]=Worlds 2023`
+</ParamField>
+
+<ParamField query="filter[esports_team]" type="string">
+  Filter by esports team abbreviation
+  
+  Example: `?filter[esports_team]=T1`
+</ParamField>
+
+<ParamField query="filter[release_year]" type="integer">
+  Filter by release year
+  
+  Example: `?filter[release_year]=2023`
+</ParamField>
+
+<ParamField query="page" type="integer" default="1">
+  Page number for pagination (72 icons per page)
+  
+  Example: `?page=2`
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `icons.index` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="icons" type="LengthAwarePaginator<SummonerIcon>">
+  Paginated collection of summoner icons (72 per page)
+</ResponseField>
+
+#### Cache Strategy
+
+<Info>
+  Icons are cached for **1 hour** with a unique cache key per query combination using MD5 hash of serialized query parameters.
+</Info>
+
+**Cache Key Format:** `icons_{md5_hash_of_query}`
+
+Examples:
+- `icons_d41d8cd98f00b204e9800998ecf8427e` (no filters)
+- `icons_a3c2f1e9b8d7c6a5b4e3d2c1f0e9d8c7` (with filters)
+
+#### Default Sorting
+
+```php
+->defaultSort('-icon_id')
+```
+
+<Note>
+  Icons are sorted by `icon_id` in **descending order** (newest icons first). The `-` prefix indicates descending sort.
+</Note>
+
+#### Usage Examples
+
+<CodeGroup>
+
+```bash Browse All Icons
+GET /icons
+```
+
+```bash Filter by Team
+GET /icons?filter[esports_team]=T1
+# Shows only T1 team icons
+```
+
+```bash Filter by Year
+GET /icons?filter[release_year]=2023
+# Shows only 2023 icons
+```
+
+```bash Combined Filters
+GET /icons?filter[esports_team]=G2&filter[release_year]=2023&page=1
+# G2 icons from 2023, first page
+```
+
+</CodeGroup>
+
+### show()
+
+Displays a specific icon's detail page.
+
+```php
+public function show(SummonerIcon $summonerIcon)
+{
+    $icon = $summonerIcon;
+    return view('icons.show', ['icon' => $icon]);
+}
+```
+
+#### Parameters
+
+<ParamField path="summonerIcon" type="SummonerIcon" required>
+  SummonerIcon model instance (automatically resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="view" type="Illuminate\View\View">
+  Rendered `icons.show` Blade template
+</ResponseField>
+
+#### View Data
+
+<ResponseField name="icon" type="SummonerIcon">
+  Individual summoner icon model
+</ResponseField>
+
+#### Usage Example
+
+```bash
+GET /icon/t1-worlds-2023-abc123
+GET /icon/fnatic-lec-2024-def456
+```
+
+### store()
+
+Creates a new summoner icon (administrative function).
+
+```php
+public function store(Request $request)
+{
+    $request->validate([
+        'icon_id' => ['required', 'integer'],
+        'title' => ['nullable'],
+        'release_year' => ['nullable', 'integer'],
+        'legacy' => ['required'],
+        'image' => ['required'],
+        'esports_team' => ['nullable'],
+        'esports_region' => ['nullable'],
+        'esports_event' => ['nullable'],
+        'description' => ['nullable'],
+    ]);
+
+    return SummonerIcon::create($request->validated());
+}
+```
+
+#### Validation Rules
+
+<ParamField body="icon_id" type="integer" required>
+  Riot Games API icon ID
+</ParamField>
+
+<ParamField body="title" type="string">
+  Icon display title
+</ParamField>
+
+<ParamField body="release_year" type="integer">
+  Year the icon was released
+</ParamField>
+
+<ParamField body="legacy" type="boolean" required>
+  Whether the icon is legacy (limited availability)
+</ParamField>
+
+<ParamField body="image" type="string" required>
+  CDN URL for the icon image
+</ParamField>
+
+<ParamField body="esports_team" type="string">
+  Team abbreviation (e.g., "T1", "G2")
+</ParamField>
+
+<ParamField body="esports_region" type="string">
+  Region code (e.g., "LCK", "LEC")
+</ParamField>
+
+<ParamField body="esports_event" type="string">
+  Event name (e.g., "Worlds 2023")
+</ParamField>
+
+<ParamField body="description" type="string">
+  Icon description text
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="icon" type="SummonerIcon">
+  Newly created SummonerIcon model instance
+</ResponseField>
+
+### update()
+
+Updates an existing summoner icon.
+
+```php
+public function update(Request $request, SummonerIcon $summonerIcon)
+{
+    $request->validate([
+        'icon_id' => ['required', 'integer'],
+        'title' => ['nullable'],
+        'release_year' => ['nullable', 'integer'],
+        'legacy' => ['required'],
+        'image' => ['required'],
+        'esports_team' => ['nullable'],
+        'esports_region' => ['nullable'],
+        'esports_event' => ['nullable'],
+        'description' => ['nullable'],
+    ]);
+
+    $summonerIcon->update($request->validated());
+
+    return $summonerIcon;
+}
+```
+
+#### Parameters
+
+<ParamField path="summonerIcon" type="SummonerIcon" required>
+  Icon to update (resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="icon" type="SummonerIcon">
+  Updated SummonerIcon model instance
+</ResponseField>
+
+### destroy()
+
+Deletes a summoner icon.
+
+```php
+public function destroy(SummonerIcon $summonerIcon)
+{
+    $summonerIcon->delete();
+    return response()->json();
+}
+```
+
+#### Parameters
+
+<ParamField path="summonerIcon" type="SummonerIcon" required>
+  Icon to delete (resolved via route model binding)
+</ParamField>
+
+#### Return Value
+
+<ResponseField name="response" type="JsonResponse">
+  Empty JSON response with 200 status code
+</ResponseField>
+
+## Spatie Query Builder
+
+This controller uses [Spatie Query Builder](https://github.com/spatie/laravel-query-builder) for filtering:
+
+```php
+QueryBuilder::for(SummonerIcon::class)
+    ->allowedFilters(['title', 'esports_team', 'release_year'])
+    ->defaultSort('-icon_id')
+    ->paginate(72)
+```
+
+### Allowed Filters
+
+<Accordion title="title (exact match)">
+  **Column:** `title`
+  
+  **Type:** Exact match
+  
+  **Example:** `?filter[title]=Worlds` matches icons with exactly "Worlds" in the title
+</Accordion>
+
+<Accordion title="esports_team (exact match)">
+  **Column:** `esports_team`
+  
+  **Type:** Exact match
+  
+  **Example:** `?filter[esports_team]=T1` matches only T1 team icons
+</Accordion>
+
+<Accordion title="release_year (exact match)">
+  **Column:** `release_year`
+  
+  **Type:** Exact match (integer)
+  
+  **Example:** `?filter[release_year]=2023` matches only 2023 releases
+</Accordion>
+
+## Pagination
+
+<ParamField path="perPage" type="integer" default="72">
+  Number of icons displayed per page
+</ParamField>
+
+**Pagination URLs:**
+```
+/icons?page=1
+/icons?page=2&filter[esports_team]=T1
+/icons?page=3&filter[release_year]=2023
+```
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Query-Specific Caching" icon="key">
+    Each unique query combination gets its own cache key
+  </Card>
+  <Card title="1-Hour Cache" icon="clock">
+    Icons cached for 1 hour per query
+  </Card>
+  <Card title="Large Pages" icon="table-list">
+    72 icons per page reduces number of requests
+  </Card>
+  <Card title="Indexed Queries" icon="database">
+    Ensure filterable columns are indexed
+  </Card>
+</CardGroup>
+
+## Related Documentation
+
+<CardGroup cols={2}>
+  <Card title="SummonerIcon Model" icon="code" href="/api/models/summoner-icon">
+    View the SummonerIcon model API reference
+  </Card>
+  <Card title="Assets Feature" icon="book" href="/features/assets">
+    Learn about the game assets browsing feature
+  </Card>
+  <Card title="Emote Controller" icon="server" href="/api/controllers/summoner-emote-controller">
+    View the emote controller documentation
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/development/architecture">
+    Understand the MVC architecture
+  </Card>
+</CardGroup>
