@@ -1,0 +1,108 @@
+{
+  "projectType": "saas",
+  "projectName": "Heimerdinger.lol",
+  "projectDescription": "A user-friendly League of Legends information website featuring champions, skins, sales, and player profiles.",
+  "theme": "almond",
+  "primaryColor": "#C89B3C",
+  "lightColor": "#F0E6D2",
+  "darkColor": "#0A1428",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/champions",
+              "features/skins",
+              "features/sales",
+              "features/assets",
+              "features/player-profiles"
+            ]
+          },
+          {
+            "group": "Developer Guide",
+            "pages": [
+              "development/architecture",
+              "development/data-sources",
+              "development/commands",
+              "development/deployment"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Models",
+            "pages": [
+              "api/models/champion",
+              "api/models/skin",
+              "api/models/summoner-icon",
+              "api/models/summoner-emote"
+            ]
+          },
+          {
+            "group": "Services",
+            "pages": [
+              "api/services/boris-client"
+            ]
+          },
+          {
+            "group": "Controllers",
+            "pages": [
+              "api/controllers/champion-controller",
+              "api/controllers/skin-controller",
+              "api/controllers/sale-controller"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Contributing",
+        "groups": [
+          {
+            "group": "Community",
+            "pages": [
+              "contributing/guidelines",
+              "contributing/code-of-conduct",
+              "contributing/security"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Browse all League of Legends champions with detailed information",
+    "View champion skins and chromas with high-quality images",
+    "Track current sale rotation for champions and skins",
+    "Search and filter game assets (icons, emotes, items)",
+    "Look up player profiles by Riot ID with rank and mastery",
+    "Admin panel for managing streamers",
+    "Blog posts with League of Legends news and guides",
+    "Integration with Riot Games API and Meraki Analytics"
+  ],
+  "publicApiSurface": [
+    "ChampionController::index() - List all champions",
+    "ChampionController::show() - Show champion details",
+    "ChampionSkinController::index() - List all skins",
+    "ChampionSkinController::show() - Show skin details",
+    "SaleController::index() - Show current sales rotation",
+    "SummonerIconController::index() - List all summoner icons",
+    "SummonerEmoteController::index() - List all emotes",
+    "AssetsController::index() - Browse game assets",
+    "BorisStaticDataClient::getChampions() - Fetch champion data",
+    "BorisStaticDataClient::getChampionRates() - Fetch champion rates"
+  ]
+}
